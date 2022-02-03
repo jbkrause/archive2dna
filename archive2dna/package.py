@@ -104,7 +104,7 @@ class Container:
         self.segments_min_size = None
         self.segments_average_size = None
         self.segments_max_size = None
-        
+
         # Statistics
         self.inner_redundancy = None
         self.outer_redundancy = None
@@ -112,6 +112,7 @@ class Container:
         self.inner_corrections = 0
         self.outer_corrections = 0
         self.segments_beyond_repair = 0
+        self.segments_lost = 0        
         self.binary_size = None
         self.error = False
         self.error_message = ''
@@ -493,6 +494,8 @@ class Container:
             
         missing_indx = np.array(missing_indices(indices))
 
+        self.segments_lost += len(missing_indx)
+
         if last_index > max(indices):
             missing_indx2 = range( max(indices)+1, last_index+1 )
             missing_indx = np.concatenate( [missing_indx, missing_indx2] )
@@ -619,7 +622,8 @@ class Container:
                                    'index_positions': str(self.index_positions) },
                 'corrections'  : { 'inner': str(self.inner_corrections),
                                    'outer': str(self.outer_corrections),
-                                   'segments_beyond_repair': str(self.segments_beyond_repair)},
+                                   'segments_beyond_repair': str(self.segments_beyond_repair),
+                                   'segments_lost': str(self.segments_lost)},
                 'errors'       : { 'error': str(self.error) ,
                                    'message': str(self.error_message)},
                 'id'           : { 'package_id': str(self.package_id),
