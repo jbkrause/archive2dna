@@ -111,6 +111,7 @@ class Container:
 
         self.inner_corrections = 0
         self.outer_corrections = 0
+        self.segments_beyond_repair = 0
         self.binary_size = None
         self.error = False
         self.error_message = ''
@@ -424,8 +425,6 @@ class Container:
             ecc_mi = dna.merge_bases(ecc2, block_size=self.dmi) 
             
             # Compute coded message to decode
-            #print(dcol)
-            #print(darray_mi)
             darray_ba = bytearray(list(darray_mi))
             ecc_ba = bytearray(list(ecc_mi))
             coded_msg_ba = darray_ba + ecc_ba
@@ -436,8 +435,7 @@ class Container:
                 n_corrections = len(errata_pos)
 
             except Exception as e:
-                print('    ',e)
-                print('     marking fragment beyond repair for destruction')
+                self.segments_beyond_repair += 1
                 segments_to_destroy.append(i)   
              
             if n_corrections > 0:
@@ -449,6 +447,8 @@ class Container:
                     if self.data[self.dnecsi+j,i] != decoded_bases[j] :
                         self.inner_corrections += 1 
                         self.data[self.dnecsi+j,i] = decoded_bases[j]
+
+        self.data = np.delete( self.data, [segments_to_destroy], axis=1 )
                               
 
     def sort_segments(self):
@@ -618,7 +618,8 @@ class Container:
                                    'index_length': str(self.index_length),
                                    'index_positions': str(self.index_positions) },
                 'corrections'  : { 'inner': str(self.inner_corrections),
-                                   'outer': str(self.outer_corrections) },
+                                   'outer': str(self.outer_corrections),
+                                   'segments_beyond_repair': str(self.segments_beyond_repair)},
                 'errors'       : { 'error': str(self.error) ,
                                    'message': str(self.error_message)},
                 'id'           : { 'package_id': str(self.package_id),

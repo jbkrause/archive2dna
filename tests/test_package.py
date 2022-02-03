@@ -7,6 +7,14 @@ from archive2dna import dna
 from archive2dna import package
 from archive2dna import bytesutils
 
+# directories setup
+test_package = 'tests/data/aip_olos.zip'
+test_package = test_package.replace('/', os.sep)
+test_tmp_dir = 'tests/tmp/'
+test_tmp_dir = test_tmp_dir.replace('/', os.sep)
+test_dna_tmp = test_tmp_dir + 'dna.txt'
+test_aip_tmp = test_tmp_dir + 'aip.zip'
+
 class PackageModudle(TestCase):
 
 
@@ -32,13 +40,15 @@ class PackageModudle(TestCase):
         self.assertTrue( c.dna[0] == sequence )
 
     def test_load_binary(self):
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container()
         c.load_binary(binary_data)
         self.assertTrue( isinstance(c.data, np.ndarray)   )
 
     def test_add_logical_redundancy(self):
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container()
         c.load_binary(binary_data)
         c.create_logical_redundancy()        
@@ -46,7 +56,8 @@ class PackageModudle(TestCase):
         
     def test_encode_write_decode_write(self):
         # encode bytes to dna and write
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id=None)
         c.load_binary(binary_data)
         c.add_outer_code()
@@ -55,12 +66,14 @@ class PackageModudle(TestCase):
         c.to_dna()
         c.add_primers()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
         c.compute_stats()
     
         # read dna, decode and write bytes
         c = package.Container()
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            text = f.read()
         c.read_dna(text)
         c.remove_primers()
         c.compute_segments_sizes()
@@ -70,43 +83,42 @@ class PackageModudle(TestCase):
         c.sort_segments()
         c.decode_outer_code()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
         c.compute_stats()
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')      
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)      
         self.assertTrue( h1==h2  )
 
 
     def test_encode_write_decode_write_high_level(self): 
         # from bytes to DNA
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id='test:1')
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
         c.compute_stats()
 
         # from DNA to bytes
         c = package.Container(package_id='test:1')
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            test = f.read()
         c.load_dna(text)
         c.check_and_correct_logical_redundancy()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
         c.compute_stats()
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')     
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)     
         self.assertTrue( h1==h2  )
         

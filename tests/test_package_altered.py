@@ -7,6 +7,15 @@ from archive2dna import dna
 from archive2dna import package
 from archive2dna import bytesutils
 
+# directories setup
+test_package = 'tests/data/aip_olos.zip'
+test_package = 'tests/data/aip_matterhorn.zip'
+test_package = test_package.replace('/', os.sep)
+test_tmp_dir = 'tests/tmp/'
+test_tmp_dir = test_tmp_dir.replace('/', os.sep)
+test_dna_tmp = test_tmp_dir + 'dna.txt'
+test_aip_tmp = test_tmp_dir + 'aip.zip'
+
 def replace_base(s, pos=10, by='A'):
     return s[:pos] + by + s[(pos+1):]
     
@@ -31,16 +40,19 @@ class PackageModudle(TestCase):
     def test_bases_replacement(self): 
     
         # from bytes to DNA
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id=None)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
-        
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
+            
         # do bases replacement
-        dna_segments = open('tests/tmp/dna_out.txt', 'r').read().split('\n')
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
         # one replacement
         dna_segments[2] = replace_base( dna_segments[2], pos=2 )
         # one replacement
@@ -60,40 +72,42 @@ class PackageModudle(TestCase):
         # two replacements not-congiguous
         #dna_segments[40] = replace_base( dna_segments[40], pos=5 )
         #dna_segments[40] = replace_base( dna_segments[40], pos=18 )
-        open('tests/tmp/dna_out.txt', 'w').write( '\n'.join(dna_segments) )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
         c = package.Container()
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            text = f.read()
         c.load_dna(text)
         c.check_and_correct_logical_redundancy()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')
-             
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        #os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)             
         self.assertTrue( h1==h2  )
         
     def test_bases_deletion(self): 
     
         # from bytes to DNA
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id=None)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
         
         # do bases deletion
-        dna_segments = open('tests/tmp/dna_out.txt', 'r').read().split('\n')
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
         # one
-        #dna_segments[2] = remove_base( dna_segments[2], pos=2 )
+        dna_segments[200] = remove_base( dna_segments[200], pos=100 )
         # one
         #dna_segments[10] = remove_base( dna_segments[10], pos=-4 )
         # two  congiguous
@@ -111,93 +125,96 @@ class PackageModudle(TestCase):
         # two not-congiguous
         #dna_segments[40] = remove_base( dna_segments[40], pos=5 )
         #dna_segments[40] = remove_base( dna_segments[40], pos=18 )
-        open('tests/tmp/dna_out.txt', 'w').write( '\n'.join(dna_segments) )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
         c = package.Container()
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            text = f.read()
         c.load_dna(text)
         c.check_and_correct_logical_redundancy()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')
-             
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        #os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)
         self.assertTrue( h1==h2  )
 
 
-    def test_segments_deletion(self): 
+    def test_segments_deletionn(self): 
     
         # from bytes to DNA
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id=None)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
         
-        # do segments deletion
-        dna_segments = open('tests/tmp/dna_out.txt', 'r').read().split('\n')
+        # do segments insertion
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
         for i in [10, 15, 24, 32, 51]:
             dna_sgements = remove_segments(dna_segments, i)
-        open('tests/tmp/dna_out.txt', 'w').write( '\n'.join(dna_segments) )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
         c = package.Container()
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            text = f.read()
         c.load_dna(text)
         c.check_and_correct_logical_redundancy()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')
-             
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        #os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)             
         self.assertTrue( h1==h2  )
 
 
     def test_segments_permutations(self): 
     
         # from bytes to DNA
-        binary_data = open('tests/data/aip_small.zip', 'rb').read()
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
         c = package.Container(package_id=None)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
         text = c.write_dna()
-        open('tests/tmp/dna_out.txt', 'w').write( text )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
         
-        # do segments permutations
-        dna_segments = open('tests/tmp/dna_out.txt', 'r').read().split('\n')
+        # do segments permutation
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
         dna_sgements = switch_segments(dna_segments, n1=10, n2=20)
         dna_sgements = switch_segments(dna_segments, n1=15, n2=8)
         dna_sgements = switch_segments(dna_segments, n1=31, n2=23)
-        open('tests/tmp/dna_out.txt', 'w').write( '\n'.join(dna_segments) )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
         c = package.Container()
-        text = open('tests/tmp/dna_out.txt', 'r').read()
+        with open(test_dna_tmp, 'r') as f:
+            test = f.read()
         c.load_dna(text)
         c.check_and_correct_logical_redundancy()
         binary_data = c.write_binary()
-        open('tests/tmp/binary.out.zip', 'wb').write(binary_data)
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
 
         # check if input and output are the sha256 the same
-        h1 = bytesutils.sha256('tests/data/aip_small.zip')
-        h2 = bytesutils.sha256('tests/tmp/binary.out.zip')
-             
-        # clean up and finish
-        os.remove('tests/tmp/dna_out.txt')
-        #os.remove('tests/tmp/binary.out.zip')
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)
         self.assertTrue( h1==h2  )
 
