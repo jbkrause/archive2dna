@@ -68,10 +68,8 @@ class PackageModudle(TestCase):
         dna_segments[35] = replace_base( dna_segments[35], pos=35 )
         dna_segments[35] = replace_base( dna_segments[35], pos=36 )
         dna_segments[35] = replace_base( dna_segments[35], pos=37 )
-        dna_segments[35] = replace_base( dna_segments[35], pos=38 ) 
-        # two replacements not-congiguous
-        #dna_segments[40] = replace_base( dna_segments[40], pos=5 )
-        #dna_segments[40] = replace_base( dna_segments[40], pos=18 )
+        dna_segments[35] = replace_base( dna_segments[35], pos=38 )
+        
         with open(test_dna_tmp, 'w') as f:
             f.write( '\n'.join(dna_segments) )
 
@@ -108,23 +106,6 @@ class PackageModudle(TestCase):
             dna_segments = f.read().split('\n')
         # one
         dna_segments[200] = remove_base( dna_segments[200], pos=100 )
-        # one
-        #dna_segments[10] = remove_base( dna_segments[10], pos=-4 )
-        # two  congiguous
-        #dna_segments[20] = remove_base( dna_segments[20], pos=12 )
-        #dna_segments[20] = remove_base( dna_segments[20], pos=12 )
-        # three congiguous
-        #dna_segments[30] = remove_base( dna_segments[30], pos=20 )
-        #dna_segments[30] = remove_base( dna_segments[30], pos=20 )
-        #dna_segments[30] = remove_base( dna_segments[30], pos=20 ) 
-        # four congiguous
-        #dna_segments[36] = remove_base( dna_segments[36], pos=35 )
-        #dna_segments[36] = remove_base( dna_segments[36], pos=35 )
-        #dna_segments[36] = remove_base( dna_segments[36], pos=35 )
-        #dna_segments[36] = remove_base( dna_segments[36], pos=35 ) 
-        # two not-congiguous
-        #dna_segments[40] = remove_base( dna_segments[40], pos=5 )
-        #dna_segments[40] = remove_base( dna_segments[40], pos=18 )
         with open(test_dna_tmp, 'w') as f:
             f.write( '\n'.join(dna_segments) )
 
