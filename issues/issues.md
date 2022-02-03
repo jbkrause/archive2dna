@@ -11,5 +11,6 @@
 ## Issues
 
 * When last or lasts DNA segments are lost, outer code restauration
-  generates a padding of 0 for the last segment. Not a problem for zip
-  files but inelegant.
+  generates a padding of 0 for the last segment. It is removed by the
+  internal unzipping at end of decoding process (so it is not a
+  problem but unelegant)

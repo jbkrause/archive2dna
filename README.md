@@ -238,6 +238,16 @@ def id2primer(package_id, length=5):
 Bits are subsequently converted to DNA using the conversion table shown
 in a previous section.
 
+## Zipping
+
+At the very begin of the encoding the binary data is zipped. And it is
+unzipped at the end.
+
+This ensures that:
+* homogeneous sections of data are reduced
+* data size is limited
+* padding of last dna segment when it is restored via outer code is removed 
+
 
 # Requirements
 

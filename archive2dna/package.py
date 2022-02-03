@@ -17,6 +17,8 @@
 # standard library
 import math
 import array
+import io
+import zipfile
 
 # external
 import numpy as np
@@ -161,6 +163,13 @@ class Container:
            Binary data is stored by columns: first column 1 is filled,
            then column 2, and so on."""
         self.binary_size = len(binary_data)
+        # zip data
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+             zip_file.writestr('information_package', io.BytesIO( binary_data ).getvalue() )
+        binary_data = zip_buffer.getvalue()
+        del( zip_buffer )
+        # mask data
         binary_data = self.mask_bytes(binary_data)
         binary_data = bytesutils.split_bytes_in_four(binary_data)
         original_data = np.frombuffer(binary_data, dtype='S1', count=-1, offset=0)
@@ -589,8 +598,15 @@ class Container:
             if b != None:
                 self.binary_data += dna.int2bytes(b, n=1)
                 
-        self.binary_data = bytesutils.merge_four_bytes_in_one(self.binary_data)        
+        self.binary_data = bytesutils.merge_four_bytes_in_one(self.binary_data)
+              
         self.binary_data = self.mask_bytes(self.binary_data)
+        
+        zip_buffer2 = io.BytesIO( self.binary_data )
+        with zipfile.ZipFile(zip_buffer2, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+            self.binary_data = zip_file.read('information_package')
+        del( zip_buffer2 )
+       
         self.binary_size = len(self.binary_data)
         return self.binary_data 
 
