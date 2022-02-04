@@ -9,7 +9,7 @@ from archive2dna import bytesutils
 
 # directories setup
 test_package = 'tests/data/aip_olos.zip'
-test_package = 'tests/data/aip_matterhorn.zip'
+test_package2 = 'tests/data/aip_matterhorn.zip'
 test_package = test_package.replace('/', os.sep)
 test_tmp_dir = 'tests/tmp/'
 test_tmp_dir = test_tmp_dir.replace('/', os.sep)
@@ -38,7 +38,7 @@ def remove_segments(segments, n=100):
 class PackageModudle(TestCase):
 
     def test_bases_replacement(self): 
-    
+        """Test mutation: replace bases in segments""" 
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
@@ -89,7 +89,7 @@ class PackageModudle(TestCase):
         self.assertTrue( h1==h2  )
         
     def test_bases_deletion(self): 
-    
+        """Test mutation:  bases deletion in segments"""     
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
@@ -124,8 +124,44 @@ class PackageModudle(TestCase):
         h2 = bytesutils.sha256(test_aip_tmp)
         self.assertTrue( h1==h2  )
 
+    def test_bases_inseretion(self): 
+        """Test mutation: insert bases in segments"""     
+        # from bytes to DNA
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
+        c = package.Container(package_id=None)
+        c.load_binary(binary_data) 
+        c.create_logical_redundancy()
+        c.convert_to_dna()
+        text = c.write_dna()
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
+        
+        # do bases deletion
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
+        # one
+        dna_segments[200] = insert_base( dna_segments[250], pos=100 )
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
 
-    def test_segments_deletionn(self): 
+        # from DNA to bytes
+        c = package.Container()
+        with open(test_dna_tmp, 'r') as f:
+            text = f.read()
+        c.load_dna(text)
+        c.check_and_correct_logical_redundancy()
+        binary_data = c.write_binary()
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
+
+        # check if input and output are the sha256 the same
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)
+        self.assertTrue( h1==h2  )
+
+    def test_segments_deletion(self): 
+        """Test segments loss""" 
     
         # from bytes to DNA
         with open(test_package, 'rb') as f:
@@ -162,8 +198,9 @@ class PackageModudle(TestCase):
         self.assertTrue( h1==h2  )
 
 
+
     def test_segments_permutations(self): 
-    
+        """Test segments permutations"""     
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()

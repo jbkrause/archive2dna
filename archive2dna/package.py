@@ -35,13 +35,13 @@ class Container:
 
     def __init__( self,
                       package_id = None,
-                      primer_length = 5,
-                      mi = 8,
-                      mo = 14,
-                      index_length    = 32,
-                      index_positions = 24,
-                      N = 34,
-                      K = 30,
+                      primer_length = 5,    # in bytes, so 5*mi/2 -> 20 nucleotides
+                      mi = 8,               # bits per inner symbol
+                      mo = 14,              # pits per outer symbol
+                      index_length    = 32, # in bits, so I  = 32 / (mi/2) = 8 symbols
+                      index_positions = 24, # in bits, so I1 = 28 / (mi/2) = 7 symbols
+                      N = 34,               # inner code lenght in symbols (message + error correctin symbols)
+                      K = 30,               # inner code message in symbols
                       necso = None):
 
         # Primer : package identification in bytes
@@ -627,15 +627,23 @@ class Container:
                 'dna_segments' : { 'size_median': str(self.segments_median_size),
                                    'size_min': str(self.segments_min_size),
                                    'count': str(self.segments_count) },
-                'binary_data'  : { 'size': str(self.binary_size) },
-                'parameters'   : { 'N': str(self.N),
+                'binary_data'  : { 'size_bytes': str(self.binary_size),
+                                   'blocks': str(1) },
+                'capacity'     : { 'max_segments_block': str(self.n),
+                                   'block_capacity_bytes': str( self.n * ((self.K-self.I)*self.mi//8)  ),
+                                   'max_segments_index': str( 2**(self.I1*self.mi)-1 ),
+                                   'total_capacity_bytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8)  )},
+                'parameters'   : { 'mo': str(self.mo),
+                                   'mi': str(self.mi),
+                                   'N': str(self.N),
                                    'K': str(self.K),
                                    'necsi': str(self.necsi),
-                                   'n': str(self.segments_count),
-                                   'k': str(self.segments_count-self.necso),
+                                   'n_max': str(self.n),
+                                   'k_max': str(self.n - self.necso),
                                    'necso': str(self.necso),
-                                   'index_length': str(self.index_length),
-                                   'index_positions': str(self.index_positions) },
+                                   'I': str(self.I),
+                                   'I1': str(self.I1),
+                                   'I2': str(self.I2) },
                 'corrections'  : { 'inner': str(self.inner_corrections),
                                    'outer': str(self.outer_corrections),
                                    'segments_beyond_repair': str(self.segments_beyond_repair),

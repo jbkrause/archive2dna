@@ -46,7 +46,7 @@ is multi-platform.
 
 ## Quickstart using the command line interface (CLI)
 
-Encode a zipped information package (here aip_olos.zip) into DNA
+Encode an information package (here aip_olos.zip) into DNA
 (here dna.txt) using the "olos:123" identifier to generate primer 
 identification of DNA representation.
 
@@ -54,7 +54,7 @@ identification of DNA representation.
 python cli.py encode tests/data/aip_olos.zip  dna.txt "olos:123"
 ```
 
-Decode back:
+Decode back (identifier may be unknown):
 
 ```
 python cli.py decode dna.txt aip_decoded.zip "unknown"
@@ -133,7 +133,7 @@ The folloing Reed Solomon library was included in this tool:
 [https://github.com/tomerfiliba/reedsolomon](https://github.com/tomerfiliba/reedsolomon)). It
 
 It was chosen because:
-* it is an univers Reed Solomon library, 
+* it is an universal Reed Solomon library, 
 * that is extensively documented on
 [wikiversitiy](https://en.wikiversity.org/wiki/Reed%E2%80%93Solomon_codes_for_coders), 
 * and written in pure Python (no external dependency required). 
@@ -141,15 +141,20 @@ It was chosen because:
 ## DNA package representation
 
 archive2dna is largely based on the research of the [ETHZ Functional Materials
-Laboratory](https://fml.ethz.ch/). Implemented concepts are available
+Laboratory](https://fml.ethz.ch/). Implemented concepts are described
 in the following publication:
 
 > Meiser, Linda C., Philipp L. Antkowiak, Julian Koch, Weida D. Chen, 
 > A. Xavier Kohll, Wendelin J. Stark, Reinhard Heckel, et Robert N. Grass. 
 > "Reading and Writing Digital Data in DNA". Nature Protocols 15, 
-> no 1 (january 2020): 86 101. https://doi.org/10.1038/s41596-019-0244-5.
+> no 1 (January 2020): 86 101. https://doi.org/10.1038/s41596-019-0244-5.
 
-Adaptations of the ETH concepts were made. The following DNA data representation is used:
+A more detailed analysis of this DNA data storage approach was also published:
+
+> Heckel, R., Mikutis, G. & Grass, R.N. "A Characterization of the DNA Data Storage Channel". 
+> Sci Rep 9, 9663 (2019). https://doi.org/10.1038/s41598-019-45832-6  
+
+Adaptations of theses concepts were made, and following DNA data representation is used:
 
 ![package representation](media/data_schema.png)
 
@@ -160,7 +165,7 @@ of these bit pairs (e.g. mo -> dmo, k -> dk and son on).
 
 ## DNA to bits mapping
 
-Correspondance table between bit pairs and DNA bases:
+Correspondence table between bit pairs and DNA bases:
 
 ``` python
 bits2dna_dict = { '00' : 'A',
@@ -178,34 +183,7 @@ symbols and end of messages (the actual data to preserve). These
 countdowns enable auto detection of the mentioned parameters even if
 many DNA segments are no longer readable.
 
-## Parameters
-
-### Inner code
-
-* Symbols size : mi = 8 bits allows for support of DNA segment up to 1024
-  nucleotides (2**8 blocks of 4 DNA bases)
-* Reed Solomon N=34, K=30 : allow to correct up to 4 blocks of 4
-  nucleotides, i.e. an inner redundancy over 10%.
-* DNA segments of reasonable size (considering other default
-  parameters they are of 136 nucleotides without primers),
-
-### Outer code
-
-* Symbols size : mo = 14 bits allows for support of outer code blocks of
-  2^14 * 14/2 (over 10^5) nucleotides/fragments.
-* n, k : auto computed on basis of package size so that outer
-  redundancy is of quite exactly of 40% (as recommended).
-
-### Index
-* index_positions=24 bits : allow for 2^24 (over 10^7) segments par
-  package i.e. a capacity of over 500 MB per package (using default
-  K=30). Using higher values for K, e.g. K=900 would theoretically
-  increase the package capacity to 15 GB (but this requires synthesis
-  of longer DNA segments)
-* index_length=32 bits : leave index_length - index_positions = 8 bits
-  to prepare for auto-detection of the n,k parameters when decoding DNA.
-
-## Masking using random data 
+### Masking using random data 
 
 Both the binary data of the package and the index are masked using
 random data applied using a XOR operation. The random data sets are
@@ -214,7 +192,7 @@ included in the source code as they are required to restore the data.
 These oparations are necessary to avoid repetitive DNA sequences that are
 problematic during synthesis and PCR operations.
 
-## Identification and primers
+### Identification and primers
 
 Directed access to DNA encoded packages (i.e. sets of DNA segments
 that constitute a package) is achieved using a specific primer in a [polymerase chain
@@ -235,23 +213,61 @@ def id2primer(package_id, length=5):
     return bytes2dna(primer_bytes)
 ```
 
-Bits are subsequently converted to DNA using the conversion table shown
-in a previous section.
+### Zipping
 
-## Zipping
-
-At the very begin of the encoding the binary data is zipped. And it is
-unzipped at the end.
+At the very begin of the encoding process, the binary data is zipped. It is
+unzipped at the end of decoding.
 
 This ensures that:
 * homogeneous sections of data are reduced
 * data size is limited
-* padding of last dna segment when it is restored via outer code is removed 
+* padding of last DNA segment when it is restored via outer code is removed (as ZIP ingnores trailing zeroes) 
+
+
+## Parameters
+
+### Inner code
+
+* Symbols size : mi = 8 bits allows for support of DNA segment up to 1024
+  nucleotides (2**8 blocks of 4 DNA bases)
+* Reed Solomon N=34, K=30 : allow to correct up to 4 blocks of 4
+  nucleotides, i.e. an inner redundancy over 10%.
+* DNA segments of reasonable size (considering other default
+  parameters they are of 136 nucleotides without primers),
+
+### Outer code
+
+* Symbols size : mo = 14 bits allows for support of outer code blocks of
+  2^14 * 14/2 (over 10^5) nucleotides/fragments.
+* n_max = 2**mo-1
+* the number of fragments is chosen to fit the size of the binary package
+  to be encoded
+* k  auto computed on basis of package size so that outer
+  redundancy is of quite exactly of 40% (as recommended).
+
+### Index
+* index_positions=24 bits : allow for 2^24 (over 10^7) segments par
+  package i.e. a capacity of over 400 MB per package (using default
+  K=30). Using higher values for K, e.g. K=900 would theoretically
+  increase the package capacity over 10 GB (but this requires synthesis
+  of longer DNA segments).
+* index_length=32 bits : leave index_length - index_positions = 8 bits
+  to prepare for auto-detection of the n,k parameters when decoding DNA.
+
+### Random data 
+
+The random data sets are included in the source code as they are 
+required to restore the data.
+
+### Identification and primers
+
+Default primer lenght is of 5 bytes, i.e. 20 nucleotides. This is enough
+to identifiy millions of information packages and appropriated for PCR.
 
 
 # Requirements
 
-Python >=3.5.
+Python >=3.6.
 
 # Test suite
 
