@@ -26,6 +26,7 @@ import numpy as np
 # package
 from . import dna
 from . import bytesutils
+from . import representation
 
 #from reedsolo import RSCodec
 from . import reedsolo
@@ -172,31 +173,12 @@ class Container:
         # mask data
         binary_data = self.mask_bytes(binary_data)
         binary_data = bytesutils.split_bytes_in_four(binary_data)
-        original_data = np.frombuffer(binary_data, dtype='S1', count=-1, offset=0)
-        del(binary_data)
-        # compute number of DNA segments in outer code message
-        self.dk = len(original_data) // (self.dK-self.dI)
-        if len(original_data) % (self.dK-self.dI) != 0: # if last segment is not full
-            self.dk += 1
-        # compute padding with None before reshaping into 2D array
-        # cells set with None are "empty"
-        padding_length =  ((self.dK-self.dI)*self.dk)- original_data.shape[0]
-        padding = np.full((padding_length,), None)
-        original_data_padded = np.concatenate( (original_data, padding), axis=0)
-        del(original_data)
-        self.data = original_data_padded.reshape(self.dk, self.dK-self.dI).T # transpose for organisation by columns
-        del(original_data_padded)
-        self.data[ self.data==b'' ] = b'\x00' # fix numpy import
-        
-    ##################################
-    ### Create logical redundancy  ###
-    ##################################
-        
-    def add_outer_code(self):
-        """Computes outer code error correcing symbols and initializes data with encoded messages 
-           (=  error correcting codes + message). The outer code is applied between segments
-           i.e. over each line of the data array.
-           """
+
+        # representation way
+        self.dk = len(binary_data) // (self.dK-self.dI)
+        if len(binary_data) % (self.dK-self.dI) != 0: # if last segment is not full
+            self.dk += 1  
+
         # If outer code lenght self.necso is not specified, 
         # auto compute so we have about 40% outer redundancy
         pr = 0.4 # goal: 40% redundancy
@@ -208,12 +190,61 @@ class Container:
             self.dnecso = dnecso
             self.necso  = dnecso // dmo
 
+        # set total number of columns
+        self.dn = self.dk + self.dnecso
+                
+        # load data    
+        n_lines   = self.dK-self.dI
+        n_columns = self.dk
+        self.data = representation.Representation( data_bytes=binary_data,
+                                                   n_lines = n_lines,
+                                                   n_columns = n_columns )
+
+        # shift extend data to final structure dn x dk                                           
+        delta_lines   = self.dN - n_lines
+        self.data.insertlines(0,n=delta_lines)        
+        delta_columns = self.dn - n_columns
+        self.data.insertcolumns(0,n=delta_lines)
+        
+        #print( self.data.size )
+        #print( self.data.getline(0) )
+        #print( self.data.getline(135) )                                       
+        #raise
+
+        ## numpy way
+        #original_data = np.frombuffer(binary_data, dtype='S1', count=-1, offset=0)
+        #del(binary_data)
+        # compute number of DNA segments in outer code message
+        #self.dk = len(original_data) // (self.dK-self.dI)
+        #if len(original_data) % (self.dK-self.dI) != 0: # if last segment is not full
+        #    self.dk += 1
+        # compute padding with None before reshaping into 2D array
+        ## cells set with None are "empty"
+        #padding_length =  ((self.dK-self.dI)*self.dk)- original_data.shape[0]
+        #padding = np.full((padding_length,), None)
+        #original_data_padded = np.concatenate( (original_data, padding), axis=0)
+        #del(original_data)
+        #self.data = original_data_padded.reshape(self.dk, self.dK-self.dI).T # transpose for organisation by columns
+        #del(original_data_padded)
+        #self.data[ self.data==b'' ] = b'\x00' # fix numpy import
+        
+    ##################################
+    ### Create logical redundancy  ###
+    ##################################
+        
+    def add_outer_code(self):
+        """Computes outer code error correcing symbols and initializes data with encoded messages 
+           (=  error correcting codes + message). The outer code is applied between segments
+           i.e. over each line of the data array.
+           """
+
         # Initialize Reed Solomon outer coder
         outerCoder =  RSCodec(self.necso, nsize=self.n) # Using n-k = necs error correcting codes
         
-        original_data_array = self.data # TODO: uneficient, change that
-        self.dn = self.dk + self.dnecso
-        self.data = np.full((self.dN, self.dn), None, dtype=object)
+        ## numpy way
+        #original_data_array = self.data # TODO: uneficient, change that
+        #self.dn = self.dk + self.dnecso
+        #self.data = np.full((self.dN, self.dn), None, dtype=object)
         
         # Create error outer correcting code sybolsline by bline    
         for i in range(self.dK-self.dI):
