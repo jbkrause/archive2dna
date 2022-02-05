@@ -248,29 +248,29 @@ class Container:
 
         Index = np.full((self.dI, self.data.shape[1]), 0, dtype='object')
         
-        # Numerus currens of segments, starts at 1. 0 used for destroyed fragments 
-        for i in range(1, self.data.shape[1]+1):
+        # Numerus currens of segments, starts at 0
+        for i in range(self.data.shape[1]):
             b = dna.int2bytes(i, n=self.index_positions//8)
             for j in range(self.index_positions//8):
                 x = b[j].to_bytes(1,'big')
                 x4 = bytesutils.split_bytes_in_four(x)
                 for l in range(len(x4)):
-                    Index[4*j+l,i-1] = x4[l]
+                    Index[4*j+l,i] = x4[l]
             
         # Count down for end of segment
-        max_range = min([ self.data.shape[1]+1, 2**(self.index_length - self.index_positions)])
-        for i in range(1, max_range):
+        max_range = min([ self.data.shape[1], 2**(self.index_length - self.index_positions)-1])
+        for i in range(max_range):
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
-                Index[ l+self.dI1, self.data.shape[1]-i] = x4[l] #.to_bytes(1,'big')
+                Index[ l+self.dI1, self.data.shape[1]-i-1] = x4[l] #.to_bytes(1,'big')
 
         # Count down for end of outer code ecc
-        for i in range(1, max_range):
+        for i in range(max_range):
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
-                Index[ l+self.dI1, self.dnecso-i] = x4[l] #.to_bytes(1,'big')
+                Index[ l+self.dI1, self.dnecso-i-1] = x4[l] #.to_bytes(1,'big')
 
         for i in range(Index.shape[1]):
             Index[:,i] = self.mask_dna(Index[:,i])
@@ -469,6 +469,7 @@ class Container:
     
         indices = np.full((self.data.shape[1],), None, dtype=object)
         count_down = np.full((self.data.shape[1],), None, dtype=object)
+        
 
         # Get positions for all segments
 
@@ -491,7 +492,7 @@ class Container:
         last_index = None
         for i in range(len(count_down)):
             if count_down[-i] != 0: # take fisrt index for non null countdowns
-                last_index = indices[-i] + count_down[-i] - 1
+                last_index = indices[-i] + count_down[-i]
                 break
 
         # Find missing segments indices and extends data array to restore them
@@ -502,9 +503,9 @@ class Container:
             return sorted(set(range(start, end + 1)).difference(l2))
             
         missing_indx = np.array(missing_indices(indices))
-
+        
         self.segments_lost += len(missing_indx)
-
+        
         if last_index > max(indices):
             missing_indx2 = range( max(indices)+1, last_index+1 )
             missing_indx = np.concatenate( [missing_indx, missing_indx2] )
@@ -524,10 +525,10 @@ class Container:
         if self.necso is None:
             for i in range(len(count_down)):
                 if count_down[i] != 0:
-                    self.dnecso = indices[i] + count_down[i] - 1
+                    self.dnecso = indices[i] + count_down[i] + 1
                     self.necso = self.dnecso // self.dmo
                     break
-        
+
 
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
