@@ -44,6 +44,9 @@ class Representation:
         self.column_index = {}
         for i in range( len(self.data) ):
             self.column_index[ self.data[i]['index'] ] = i
+            
+    def column_indexes(self):
+        return self.column_index.keys()
                     
     def getcolumn(self, n, s=None):
         if s==None:
@@ -61,14 +64,21 @@ class Representation:
     def getline(self, n, s=None):
         line = array.array('b')
         if s == None:
-            i_from = self.column_index_min
-            i_to = self.column_index_max
+            # TODO: performances, insure index sorted and do not sort here
+            for i in sorted( self.column_indexes() ):
+                col = self.getcolumn(i)
+                if len(col) > n:
+                    line.append( col[n] )
+            #for i in self.column_indexes():
+            #    if n < len( self.data[self.column_index[i]]['column'] ): # if column shorter
+            #        line.append( self.data[self.column_index[i]]['column'][n] )
         else:
-            i_from = s.start
-            i_to = s.stop
-        for i in range( i_from, i_to ):
-            if n < len( self.data[self.column_index[i]]['column'] ): # if column shorter
-                line.append( self.data[self.column_index[i]]['column'][n] )
+            raise "not implemented"
+            #i_from = s.start
+            #i_to = s.stop
+            #for i in range( i_from, i_to ):
+            #    if n < len( self.data[self.column_index[i]]['column'] ): # if column shorter
+            #        line.append( self.data[self.column_index[i]]['column'][n] )
         return line
 
     def setline(self, n, line, start_at=1):
@@ -103,3 +113,14 @@ class Representation:
             
         self.size[1] += n
         self.reindex_columns()
+     
+    def tonumpy(self):
+        import numpy as np
+        out = np.array( np.full( self.size, None, dtype=object ) )
+        for i in sorted( self.column_indexes() ):
+            col = self.getcolumn(i)
+            for j in range(len(col)):
+                out[j,i] = col[j]
+        return out
+        
+            

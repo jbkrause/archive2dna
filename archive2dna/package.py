@@ -228,6 +228,7 @@ class Container:
         #del(original_data_padded)
         #self.data[ self.data==b'' ] = b'\x00' # fix numpy import
         
+        
     ##################################
     ### Create logical redundancy  ###
     ##################################
@@ -252,6 +253,8 @@ class Container:
 
         #print( self.data.getline(135) )
         
+        data = self.data.tonumpy()
+        
         # Create error outer correcting code sybolsline by bline    
         for i in range(self.dK-self.dI):
         
@@ -265,6 +268,10 @@ class Container:
             #print(dline[column_offset_ori:])
             #raise
             line_array = array.array('i', list(dline))
+            #if i+line_offset_ori==135:
+            #    print('dline     ', dline)
+            #    print('line_array', line_array)
+            #    print('np        ', list( data[i+line_offset_ori, self.dnecso:] ))
             line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
             
             # Run Reed Solomon to compute error correctig symblos
@@ -283,8 +290,13 @@ class Container:
         
         #print( self.data.size )
         #print( self.data.getline(0) )
-        #print( self.data.getline(135) )
+        #print( self.data.getline(135)[self.dnecso:] )
+        #print( list(self.data.tonumpy()[-1,self.dnecso:]) )
         #raise
+        #print( self.data.getline(135) )
+        #print( list(self.data.tonumpy()[-1,:]) )
+        #raise
+
 
     def add_index(self):
         """Adds index i.e. the identification of DNA segments (1 segment = 1 column):
@@ -299,6 +311,7 @@ class Container:
                 
         # Numerus currens of segments, starts at 0 (in index block I1)
         for i in range(self.data.size[1]):
+        #for i in self.data.column_indexes():
             b = dna.int2bytes(i, n=self.index_positions//8)
             for j in range(self.index_positions//8):
                 x = b[j].to_bytes(1,'big')
@@ -311,8 +324,10 @@ class Container:
         #raise
             
         # Count down for end of segment, ends at 0 (iin index block I2)
+        # TODO: add block management
         max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
         for i in range(max_range):
+        #for i in self.data.column_indexes():
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
@@ -320,6 +335,7 @@ class Container:
 
         # Count down for end of outer code ecc, ends at 0 (in index block I2)
         for i in range(max_range):
+        #for i in self.data.column_indexes():
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
@@ -332,7 +348,6 @@ class Container:
             
         #self.data[self.dnecsi:self.dnecsi+self.dI] = Index
         #del(Index)
-        #raise
 
     def add_inner_code(self):
         """ Adds inner code, i.e. the correcting code of each DNA segment. 
@@ -366,6 +381,8 @@ class Container:
         #print( self.data.getline(0) )
         #print( self.data.getline(self.dnecsi-1) )
         #raise
+        #print( self.data.tonumpy() )
+        #raise
 
 
     def create_logical_redundancy(self):
@@ -390,7 +407,8 @@ class Container:
     #                if x != 'None':
     #                    DNA_segment += x
     #        self.dna.append(DNA_segment)
-            
+
+    # FIXME: column order            
     def to_dna(self):
         """Converts data into DNA segments"""
         self.dna = []
@@ -400,7 +418,17 @@ class Container:
            for j in range(len(col)):
                 DNA_segment += dna.bits2dna( col[j] )
            self.dna.append(DNA_segment)
-                        
+
+    #def to_dna(self):
+    #    """Converts data into DNA segments"""
+    #    self.dna = []
+    #    for i in self.data.column_indexes():
+    #       col = self.data.getcolumn(i)
+    #       DNA_segment = ''
+    #       for j in range(len(col)):
+    #            DNA_segment += dna.bits2dna( col[j] )
+    #       self.dna.append(DNA_segment)
+
     def add_primers(self):
         """Adds primer and its complements around each DNA segment."""       
         if self.primer is not None:
