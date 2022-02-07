@@ -1,5 +1,6 @@
 import array
 from collections import defaultdict
+from . import dna
 
 class Representation:
     """Represents data array structured by nucleotides. Each column is a DNA segment.
@@ -10,6 +11,7 @@ class Representation:
            - to move a column: change its index and update column_index"""
     def __init__(self,
                 data_bytes = None,
+                data_dna = None,
                 n_lines   = 5,
                 n_columns = 20 ):
         
@@ -18,20 +20,34 @@ class Representation:
         self.column_index_min = 0
         self.column_index_max = n_columns
         
-        if len(data_bytes) > n_lines*n_columns:
-            raise 
+        # loading from bytes
+        if data_bytes is not None:
+        
+            if len(data_bytes) > n_lines*n_columns:
+                raise 
 
-        # Data is organized by columns at initialization
-        # each column is filled up sequentially
-        self.data = []
-        for i in range(n_columns):
-            i_from = i*n_lines
-            i_to = (i+1)*n_lines    
-            # if column will not be fully filled
-            if i_to > len(data_bytes):
-                i_to = len(data_bytes)
-            self.data.append( {'index':i,
-                               'column':array.array('b', list( data_bytes[ i_from : i_to  ] ) )} )
+            # Data is organized by columns at initialization
+            # each column is filled up sequentially
+            self.data = []
+            for i in range(n_columns):
+                i_from = i*n_lines
+                i_to = (i+1)*n_lines    
+                # if column will not be fully filled
+                if i_to > len(data_bytes):
+                    i_to = len(data_bytes)
+                self.data.append( {'index':i,
+                                   'column':array.array('b', list( data_bytes[ i_from : i_to  ] ) )} )
+            self.index_columns_num_currens()
+                
+        # loading from dna
+        if data_dna is not None:
+            # Data is organized by columns at initialization
+            # each column corresponds to a DNA segment
+            self.data = []
+            for i in range(n_columns):
+                self.data.append( {'index':i, 'column':array.array('b') } )
+                for j in range(len(data_dna[i])):
+                    self.data[-1]['column'].append( dna.dna2bits( data_dna[i][j] ) )
             self.index_columns_num_currens()
             
     def index_columns_num_currens(self):

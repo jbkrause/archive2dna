@@ -7,6 +7,7 @@
 * Add directed brute force approach for inner code to compensate for
   frameshift mutations.
 * Adapt index genration to mi parameter.
+* Better support of line and columns reshaping when appliying Reed Solomon corrections while decoding
 
 ## Issues
 
