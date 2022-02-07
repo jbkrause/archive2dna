@@ -144,16 +144,7 @@ class Container:
             dataRA +=  self.xor_bytes( binary_data[i*rlen : (i+1)*rlen] , self.rand_mask ) 
         dataRA += self.xor_bytes( binary_data[(j+1)*rlen : (j+1)*rlen + nrest] , self.rand_mask[:nrest] ) 
         return dataRA
-        
-    def mask_dna(self, dna):
-        """Masks DNA using a XOR"""
-        out = np.full(dna.shape, None, dtype=object)
-        for i in range(len(dna)):
-            if dna[i] == None:
-                out[i] = None
-            else:
-                out[i] =  (dna[i] ^ self.rand_ints[i%len(self.rand_ints)] ) % 4
-        return out
+
 
     ###########################
     ### Data input : binary ###
@@ -283,10 +274,11 @@ class Container:
                 self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
 
         # Mask index using random numbers
-        # FIXME: to be done without numpy
-        #for i in range(Index.shape[1]):
-        #    Index[:,i] = self.mask_dna(Index[:,i])
-
+        for i in range(self.data.size[1]):
+            for j in range(self.dI): #index_length//8
+                value = self.data.getpos( self.dnecsi + j, i)
+                masked_value = ( value ^ self.rand_ints[j%len(self.rand_ints)] ) % 4
+                self.data.setpos( self.dnecsi + j, i , masked_value ) #4*j+l
 
     def add_inner_code(self):
         """ Adds inner code, i.e. the correcting code of each DNA segment. 
@@ -478,12 +470,13 @@ class Container:
         indices = []
         count_down = []
         for i in range(self.data.size[1]):
-            # FIXME: redo index demasing
-            #unmasked =  self.mask_dna( self.data[self.dnecsi:self.dnecsi+self.dI,i] )
-            #indices[i] = get_index( unmasked[:self.dI1] )
-            #count_down[i] = get_index( unmasked[self.dI1:] )
           
-            index_col = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+            #index_col = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI] 
+            masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+            index_col = []
+            for j in range(len(masked_index)):
+                index_col.append( ( masked_index[j] ^ self.rand_ints[j%len(self.rand_ints)] ) % 4 )          
+
             indices.append( get_index( index_col[:self.dI1] ) )
             count_down.append( get_index( index_col[self.dI1:] ) )
             
@@ -497,40 +490,25 @@ class Container:
                 last_index = indices[-i] + count_down[-i]
                 break
 
-        # Find missing segments indices and extends data array to restore them
-
+        # Find missing segments indices (if any)
         def missing_indices(l):
             l2 = sorted(l)
             start, end = l2[0], l2[-1]
-            return sorted(set(range(start, end + 1)).difference(l2))
-            
-        #missing_indx = np.array(missing_indices(indices))
+            return sorted(set(range(start, end + 1)).difference(l2))            
         missing_indx = missing_indices(indices)
-        
         self.segments_lost += len(missing_indx)
-        
+
+        # Extend data array with missing or unrecovered DNA segments (if required)
         if last_index > max(indices):
             missing_indx2 = range( max(indices)+1, last_index+1 )
             missing_indx = missing_indx + missing_indx2
-
-        #array_delta  = np.full( (self.data.shape[0], len(missing_indx) ), 0, dtype=object )
-
-        #indices2 = indices + missing_indx
-        
-        #self.data = np.concatenate([self.data, array_delta], axis=1)
         for x in missing_indx:
             self.data.insertcolumns(x)
         
         # Sort data array according to index
-        
-        #si = np.argsort(indices2)
-        #self.data = self.data[:, si] 
         self.data.reindex_columns()
-        
-
-        
+                
         # Auto determine necso (using first countdown in I2)
- 
         if self.necso is None:
             for i in range(len(count_down)):
                 if count_down[i] != 0:
@@ -554,18 +532,13 @@ class Container:
                 
             msgm = dna.merge_bases(msga, block_size=self.dmo) 
             eccm = dna.merge_bases(ecca, block_size=self.dmo)
-            
-            if i == 0:
-                print(list( dline ))
-                print(msgm+eccm)
 
             try:
                 n_corrections = 0
                 decoded_block, decoded_msgecc, errata_pos = outerCoder.decode(msgm+eccm)
                 n_corrections = len(errata_pos)
             except Exception as e:
-                #print('---- Outer code line:', i, '----')
-                #print(e)
+
                 self.error = True
                 self.error_message += 'Decode outer code error on line ' +\
                                        str(i) +\
@@ -579,10 +552,7 @@ class Container:
                 scope = min( [ len(decoded_bases), len( self.data[i+line_offset,self.dnecso:] ) ] ) 
                 for j in range( scope ) :
                     self.data.setpos( i+line_offset,self.dnecso+j , db[j] )
-                    
-        #print( self.data.size )  
-        print( self.data.tonumpy() )
-        #raise   
+ 
                 
     def check_and_correct_logical_redundancy(self):
         """Processes logical redundency: decode innercode, sort segments and decodes outer code."""
@@ -596,10 +566,6 @@ class Container:
         
     def write_binary(self):
         """Writes 2D DNA data array to binary data."""
-        #shape = [ self.data.size[0] - (self.dnecsi+self.dI),
-        #          self.data.size[1]-(self.data.size[1]//2**self.mo-1+1)*self.necso ]
-
-        #data_out = np.full(shape, None, dtype=object)
 
         line_offset = self.dnecsi+self.dI
                 

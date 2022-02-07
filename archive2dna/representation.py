@@ -85,16 +85,8 @@ class Representation:
                 col = self.getcolumn(i)
                 if len(col) > n:
                     line.append( col[n] )
-            #for i in self.column_indexes():
-            #    if n < len( self.data[self.column_index[i]]['column'] ): # if column shorter
-            #        line.append( self.data[self.column_index[i]]['column'][n] )
         else:
             raise "not implemented"
-            #i_from = s.start
-            #i_to = s.stop
-            #for i in range( i_from, i_to ):
-            #    if n < len( self.data[self.column_index[i]]['column'] ): # if column shorter
-            #        line.append( self.data[self.column_index[i]]['column'][n] )
         return line
 
     def setline(self, n, line, start_at=1):
