@@ -203,8 +203,8 @@ class Container:
         # shift extend data to final structure dn x dk                                           
         delta_lines   = self.dN - n_lines
         self.data.insertlines(0,n=delta_lines)        
-        delta_columns = self.dn - n_columns
-        self.data.insertcolumns(0,n=delta_lines)
+
+        self.data.insertcolumns(0,n=self.dnecso)
         
         #print( self.data.size )
         #print( self.data.getline(0) )
@@ -245,12 +245,25 @@ class Container:
         #original_data_array = self.data # TODO: uneficient, change that
         #self.dn = self.dk + self.dnecso
         #self.data = np.full((self.dN, self.dn), None, dtype=object)
+        n_lines   = self.dK-self.dI
+        n_columns = self.dk
+        line_offset_ori   = self.dN - n_lines
+        #column_offset_ori = self.dn - n_columns
+
+        #print( self.data.getline(135) )
         
         # Create error outer correcting code sybolsline by bline    
         for i in range(self.dK-self.dI):
         
             # Read line in DNA representation
-            dline = dna.get_bytearray( original_data_array[i,:] )
+            #dline = dna.get_bytearray( original_data_array[i,:] )
+            dline = self.data.getline( i+line_offset_ori )[self.dnecso:]
+            #print(self.dn, self.dk, self.dnecso)
+            #print(self.data.size)
+            #print(dline)
+            #print(dline[self.dnecso:])
+            #print(dline[column_offset_ori:])
+            #raise
             line_array = array.array('i', list(dline))
             line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
             
@@ -263,10 +276,15 @@ class Container:
             line_offset = self.dnecsi + self.dI            
             out = list(ecc_bases) +  list(line_array)
             for b in range(len(out)):
-                self.data[ i+line_offset , b ] = out[b]
+                #self.data[ i+line_offset , b ] = out[b]
+                self.data.setpos( i+line_offset , b , out[b]) 
                 
-        del(original_data_array)
-
+        #del(original_data_array)
+        
+        #print( self.data.size )
+        #print( self.data.getline(0) )
+        #print( self.data.getline(135) )
+        #raise
 
     def add_index(self):
         """Adds index i.e. the identification of DNA segments (1 segment = 1 column):
@@ -275,40 +293,46 @@ class Container:
            countdowns ent at 1, i.e. 1 is the last ecc and the last symbol of block.
            Goal: auto detect parameters when reading back DNA, namely dn and dnecso.
         """
-        # Create
-
-        Index = np.full((self.dI, self.data.shape[1]), 0, dtype='object')
+        # TODO: hardocoded for mi=8, to be generalized
         
-        # Numerus currens of segments, starts at 0
-        for i in range(self.data.shape[1]):
+        #Index = np.full((self.dI, self.data.shape[1]), 0, dtype='object')
+                
+        # Numerus currens of segments, starts at 0 (in index block I1)
+        for i in range(self.data.size[1]):
             b = dna.int2bytes(i, n=self.index_positions//8)
             for j in range(self.index_positions//8):
                 x = b[j].to_bytes(1,'big')
                 x4 = bytesutils.split_bytes_in_four(x)
                 for l in range(len(x4)):
-                    Index[4*j+l,i] = x4[l]
+                    self.data.setpos( self.dnecsi + 4*j+l, i , x4[l] )
+                    
+        #for i in range(self.index_positions//2):
+        #    print( i, self.data.getline(self.dnecsi + i) )
+        #raise
             
-        # Count down for end of segment
-        max_range = min([ self.data.shape[1], 2**(self.index_length - self.index_positions)-1])
+        # Count down for end of segment, ends at 0 (iin index block I2)
+        max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
         for i in range(max_range):
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
-                Index[ l+self.dI1, self.data.shape[1]-i-1] = x4[l] #.to_bytes(1,'big')
+                self.data.setpos( self.dnecsi + l+self.dI1, self.data.size[1]-i-1 , x4[l] )
 
-        # Count down for end of outer code ecc
+        # Count down for end of outer code ecc, ends at 0 (in index block I2)
         for i in range(max_range):
             b = dna.int2bytes(i, n=1)
             x4 = bytesutils.split_bytes_in_four(b)
             for l in range(len(x4)):
-                Index[ l+self.dI1, self.dnecso-i-1] = x4[l] #.to_bytes(1,'big')
+                self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
 
-        for i in range(Index.shape[1]):
-            Index[:,i] = self.mask_dna(Index[:,i])
+        # Mask index using random numbers
+        # FIXME: to be done without numpy
+        #for i in range(Index.shape[1]):
+        #    Index[:,i] = self.mask_dna(Index[:,i])
             
-        self.data[self.dnecsi:self.dnecsi+self.dI] = Index
-        del(Index)
-        
+        #self.data[self.dnecsi:self.dnecsi+self.dI] = Index
+        #del(Index)
+        #raise
 
     def add_inner_code(self):
         """ Adds inner code, i.e. the correcting code of each DNA segment. 
@@ -316,11 +340,11 @@ class Container:
         # Initialize inner coder
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
         
-        ica = np.full((self.dnecsi, self.dn), None, dtype=object)
+        #ica = np.full((self.dnecsi, self.dn), None, dtype=object)
         
         for i in range(self.dn):
-            dcol = dna.get_bytearray( self.data[self.dnecsi:,i] )
-            #print(dcol)
+            #dcol = dna.get_bytearray( self.data[self.dnecsi:,i] )
+            dcol = self.data.getcolumn( i )[self.dnecsi:]
             darray = array.array('i', list(dcol))
             
             # merging bases    
@@ -334,10 +358,15 @@ class Container:
             # store error correcting code symbols
             ecc  = msg_coded[-self.necsi:]
             ecc_bases = dna.split_bases(ecc, block_size=self.dmi)
-            for j in range(len(ecc_bases)):                    
-                ica[j,i] = ecc_bases[j]
+            for j in range(len(ecc_bases)):
+                self.data.setpos(j , i, ecc_bases[j])                    
+                #ica[j,i] = ecc_bases[j]
                               
-        self.data[:self.dnecsi,:] = ica 
+        #self.data[:self.dnecsi,:] = ica 
+        #print( self.data.getline(0) )
+        #print( self.data.getline(self.dnecsi-1) )
+        #raise
+
 
     def create_logical_redundancy(self):
         """Adds outer code, index, innercode"""
@@ -349,19 +378,29 @@ class Container:
     ### Convert to DNA ###
     ######################
        
+    #def to_dna(self):
+    #    """Converts data into DNA segments"""
+    #    bits2dna_vec = np.vectorize(dna.bits2dna)
+    #    data_with_inner_dna = bits2dna_vec(self.data)
+    #    self.dna = []
+    #    for i in range(data_with_inner_dna.shape[1]):
+    #        DNA_segment = ''
+    #        for x in data_with_inner_dna[:,i]:
+    #            if x != None: # Nones come form data padding required 
+    #                if x != 'None':
+    #                    DNA_segment += x
+    #        self.dna.append(DNA_segment)
+            
     def to_dna(self):
         """Converts data into DNA segments"""
-        bits2dna_vec = np.vectorize(dna.bits2dna)
-        data_with_inner_dna = bits2dna_vec(self.data)
         self.dna = []
-        for i in range(data_with_inner_dna.shape[1]):
-            DNA_segment = ''
-            for x in data_with_inner_dna[:,i]:
-                if x != None: # Nones come form data padding required 
-                    if x != 'None':
-                        DNA_segment += x
-            self.dna.append(DNA_segment)
-            
+        for i in range(self.data.size[1]):
+           col = self.data.getcolumn(i)
+           DNA_segment = ''
+           for j in range(len(col)):
+                DNA_segment += dna.bits2dna( col[j] )
+           self.dna.append(DNA_segment)
+                        
     def add_primers(self):
         """Adds primer and its complements around each DNA segment."""       
         if self.primer is not None:
@@ -514,9 +553,13 @@ class Container:
             return(idx)
 
         for i in range(self.data.shape[1]):
-            unmasked =  self.mask_dna( self.data[self.dnecsi:self.dnecsi+self.dI,i] )
-            indices[i] = get_index( unmasked[:self.dI1] )
-            count_down[i] = get_index( unmasked[self.dI1:] )
+            # FIXME: redo index demasing
+            #unmasked =  self.mask_dna( self.data[self.dnecsi:self.dnecsi+self.dI,i] )
+            #indices[i] = get_index( unmasked[:self.dI1] )
+            #count_down[i] = get_index( unmasked[self.dI1:] )
+            index_col = self.data[self.dnecsi:self.dnecsi+self.dI,i]
+            indices[i] = get_index( index_col[:self.dI1] )
+            count_down[i] = get_index( index_col[self.dI1:] )
             
         # Compute last segment position even if it was lost (using second countdown in I2)
             
