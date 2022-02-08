@@ -442,8 +442,10 @@ class Container:
 
         #self.data = np.delete( self.data, [segments_to_destroy], axis=1 )
         for i in reversed( sorted(segments_to_destroy)):
-           self.data.pop(i)
-           self.data.size[2] -= 1
+           print( self.data.column_indexes() )
+           col = self.data.popcolumn(i)
+           print(col)
+           print( self.data.column_indexes() )
                                   
 
     def sort_segments(self):
@@ -469,10 +471,11 @@ class Container:
 
         indices = []
         count_down = []
-        for i in range(self.data.size[1]):
+        for i in range( len(self.data.data) ): #self.data.column_indexes(): 
           
-            #index_col = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI] 
-            masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+            #masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+            masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
+
             index_col = []
             for j in range(len(masked_index)):
                 index_col.append( ( masked_index[j] ^ self.rand_ints[j%len(self.rand_ints)] ) % 4 )          
@@ -546,10 +549,11 @@ class Container:
                                        str(e)
                                     
             if n_corrections > 0:
+                #FIXME: continue here 2022-02-08
                 self.outer_corrections += n_corrections
                 decoded_bases = dna.split_bases(decoded_block, block_size=self.dmo)
                 db = list(decoded_bases)
-                scope = min( [ len(decoded_bases), len( self.data[i+line_offset,self.dnecso:] ) ] ) 
+                scope = min( [ len(decoded_bases), len( self.data.getline(i+line_offset)[self.dnecso:] ) ] ) 
                 for j in range( scope ) :
                     self.data.setpos( i+line_offset,self.dnecso+j , db[j] )
  

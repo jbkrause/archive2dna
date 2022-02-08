@@ -121,6 +121,14 @@ class Representation:
             
         self.size[1] += n
         self.reindex_columns()
+
+    def popcolumn(self, index):
+        """Removes column at index"""
+        
+        col = self.data.pop( self.column_index[index] )
+        self.size[1] -= 1
+        self.reindex_columns()
+        return col
      
     def tonumpy(self):
         import numpy as np
