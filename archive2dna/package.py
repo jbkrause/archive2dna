@@ -44,8 +44,8 @@ class Container:
                       index_positions = 24, # in bits, so I1 = 28 / (mi/2) = 7 symbols
                       N = 34,               # inner code lenght in symbols (message + error correctin symbols)
                       K = 30,               # inner code message in symbols
-                      target_redundancy = 0.4,
-                      auto_zip = True):
+                      target_redundancy = 0.4,  # sets outer redundancy to about 0.4 i.e. 40%
+                      auto_zip = True):     # turns auto zipping/untipping on or off
 
         # Auto zip
         # If true package is zipped before encoding and unzipped after decoding
@@ -130,9 +130,6 @@ class Container:
         self.binary_size = None
         self.error = False
         self.error_message = ''
-        
-        # Debug_output
-        self.debug_output = False
         
     ###################
     ### Random mask ###
@@ -266,7 +263,6 @@ class Container:
         
        # Numerus currens of segments, starts at 0 (in index block I1)
         for i in range(self.data.size[1]):
-        #for i in self.data.column_indexes():
             b = dna.int2bytes(i, n=self.index_positions//8)
             for j in range(self.index_positions//8):
                 x = b[j].to_bytes(1,'big')
@@ -291,10 +287,10 @@ class Container:
 
         # Mask index using random numbers
         for i in range(self.data.size[1]):
-            for j in range(self.dI): #index_length//8
+            for j in range(self.dI):
                 value = self.data.getpos( self.dnecsi + j, i)
                 masked_value = ( value ^ self.rand_ints[j%len(self.rand_ints)] ) % 4
-                self.data.setpos( self.dnecsi + j, i , masked_value ) #4*j+l
+                self.data.setpos( self.dnecsi + j, i , masked_value )
 
     def add_inner_code(self):
         """ Adds inner code, i.e. the correcting code of each DNA segment. 
@@ -421,13 +417,11 @@ class Container:
             #print('---- inner code - decoding segment', i , '----')
 
             # Read inner code : message       
-            #dcol = dna.get_bytearray( self.data[self.dnecsi:,i] )
             dcol = self.data.getcolumn( i )[self.dnecsi:]
             darray = array.array('i', list(dcol))
             darray_mi = dna.merge_bases(darray, block_size=self.dmi)
             
             # Read inner code : ecc      
-            #ecc = dna.get_bytearray( self.data[:self.dnecsi,i] )
             ecc = self.data.getcolumn( i )[:self.dnecsi]
             ecc2 = array.array('i', list(ecc))
             ecc_mi = dna.merge_bases(ecc2, block_size=self.dmi) 
@@ -465,12 +459,7 @@ class Container:
         In order to determine the number of the last segment even if it was lost the
         countdown in I2 is used. The same principle is applied for necso."""
     
-        #indices = np.full((self.data.shape[1],), None, dtype=object)
-        #count_down = np.full((self.data.shape[1],), None, dtype=object)
-        
-
-        # Get positions for all segments
-
+        # Get position of a segment
         def get_index(a):
             """Computes integer value of DNA segment"""
             bytes_index = bytearray()
@@ -480,24 +469,19 @@ class Container:
             idx = int.from_bytes(bytes_index2, byteorder='big')
             return(idx)
 
+        # Get position of each segment
         indices = []
         count_down = []
-        for i in range( len(self.data.data) ): #self.data.column_indexes(): 
-          
-            #masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+        for i in range( len(self.data.data) ):
             masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
-
             index_col = []
             for j in range(len(masked_index)):
                 index_col.append( ( masked_index[j] ^ self.rand_ints[j%len(self.rand_ints)] ) % 4 )          
-
             indices.append( get_index( index_col[:self.dI1] ) )
             count_down.append( get_index( index_col[self.dI1:] ) )
-            
             self.data.data[i]['index'] = indices[i]
             
         # Compute last segment position even if it was lost (using second countdown in I2)
-            
         last_index = None
         for i in range(len(count_down)):
             if count_down[-i] != 0: # take fisrt index for non null countdowns
@@ -512,6 +496,10 @@ class Container:
             
         missing_indx = missing_indices(indices)
         self.segments_lost += len(missing_indx)
+
+        #print(self.data.column_index)
+        #print(missing_indx)
+        #print(last_index)
         
         # Extend data array with missing or unrecovered DNA segments (if required)
         if last_index > max(indices):
@@ -522,6 +510,8 @@ class Container:
   
         # Sort data array according to index
         self.data.reindex_columns()
+        
+
                
         # Auto determine necso (using first countdown in I2)
         if self.necso is None:

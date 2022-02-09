@@ -13,6 +13,7 @@
 import os
 import sys
 import pprint
+import configparser
 
 from archive2dna import package
 
@@ -21,9 +22,25 @@ usage = '''cli.py ACTION FILE_IN FILE_OUT [PACKAGE_ID]
 
 pp = pprint.PrettyPrinter(depth=6)
 
+# read config
+cfg = configparser.ConfigParser()
+cfg.read('config.ini')
+cfg_set = 'DEFAULT'
+primer_length = int(cfg[cfg_set]['primer_length'])
+mi = int(cfg[cfg_set]['mi'])
+mo = int(cfg[cfg_set]['mo'])
+index_length = int(cfg[cfg_set]['index_length'])
+index_positions = int(cfg[cfg_set]['index_positions'])
+N = int(cfg[cfg_set]['N'])
+K = int(cfg[cfg_set]['K'])
+target_redundancy = float(cfg[cfg_set]['target_redundancy'])
+if cfg[cfg_set]['target_redundancy'] == 'False':
+    auto_zip = False
+else:
+    auto_zip = True 
+
 if len(sys.argv)==5:
     package_id = sys.argv[4]
-    primer_length = 5
 else:
     package_id = None
     primer_length = 0
@@ -35,8 +52,16 @@ elif sys.argv[1]=='encode':
     binary = sys.argv[2]
     dna = sys.argv[3]
     binary_data = open(binary, 'rb').read()
-    c = package.Container( package_id=package_id, 
-                           primer_length=primer_length )
+    c = package.Container( package_id = package_id, 
+                           primer_length = primer_length,
+                           mi = mi,
+                           mo = mo,
+                           index_length = index_length,
+                           index_positions = index_positions,
+                           N = N,
+                           K = K,
+                           target_redundancy = target_redundancy,
+                           auto_zip = auto_zip )
     c.load_binary(binary_data) 
     c.create_logical_redundancy()
     c.convert_to_dna()
@@ -49,8 +74,8 @@ elif sys.argv[1]=='decode':
     binary = sys.argv[3]
     dna = sys.argv[2]
     c = package.Container( package_id=package_id, 
-                           primer_length=primer_length )
-    #c.debug_output = True
+                           primer_length=primer_length,
+                           mo = mo )
     text = open(dna, 'r').read()
     c.load_dna(text)
     c.check_and_correct_logical_redundancy()
