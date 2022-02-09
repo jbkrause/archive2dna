@@ -36,8 +36,7 @@ elif sys.argv[1]=='encode':
     dna = sys.argv[3]
     binary_data = open(binary, 'rb').read()
     c = package.Container( package_id=package_id, 
-                           primer_length=primer_length,
-                           necso=None )
+                           primer_length=primer_length )
     c.load_binary(binary_data) 
     c.create_logical_redundancy()
     c.convert_to_dna()
@@ -50,8 +49,7 @@ elif sys.argv[1]=='decode':
     binary = sys.argv[3]
     dna = sys.argv[2]
     c = package.Container( package_id=package_id, 
-                           primer_length=primer_length,
-                           necso=None )
+                           primer_length=primer_length )
     #c.debug_output = True
     text = open(dna, 'r').read()
     c.load_dna(text)

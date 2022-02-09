@@ -44,20 +44,27 @@ class Container:
                       index_positions = 24, # in bits, so I1 = 28 / (mi/2) = 7 symbols
                       N = 34,               # inner code lenght in symbols (message + error correctin symbols)
                       K = 30,               # inner code message in symbols
-                      necso = None):
+                      target_redundancy = 0.4,
+                      auto_zip = True):
 
+        # Auto zip
+        # If true package is zipped before encoding and unzipped after decoding
+        # DO NOT set to false unless the container used supports paddig at the end
+        # e.g. if the container is already a zip, this can be turned of (set to false)        
+        self.auto_zip = auto_zip
+                      
         # Primer : package identification in bytes
         self.primer_length = primer_length # 5 bytes -> 20 nucleotides
         
         # Index : numbering of segments
         self.index_length    = index_length    # total length in bits, nust be a multiple of mi
         self.index_positions = index_positions # length of segment id in bits, nust be a multiple of mi
-        self.I   = index_length//mi              # length of the index in inner symbols
+        self.I   = index_length//mi            # length of the index in inner symbols
         self.dI  = index_length//2             # segment id in nucleotides
-        self.I1  = index_positions//mi
-        self.dI1 = index_positions//2 
-        self.I2  = (index_length - index_positions)//mi
-        self.dI2 = (index_length - index_positions)//2
+        self.I1  = index_positions//mi         # length of the index first section in symbols: segments numbering
+        self.dI1 = index_positions//2          # segment numbering in nucleotides
+        self.I2  = (index_length - index_positions)//mi  # length of the index second section: countdonws to
+        self.dI2 = (index_length - index_positions)//2   #         end of error correcting codes and end of block
 
         # Reed Solomon : coodword lengths in bits
         self.mi = mi        # inner code symbol size in bytes 
@@ -77,9 +84,9 @@ class Container:
         self.n  = 2**mo-1   # number of information symbols of outer code: 16383 nor mo=14
         self.dk = None      # dk = k*mo//2 , auto compute on basis of package file length
         self.dn = None      # dn is computed on basis of dk, i.e. dn = dk + dnecso
-        self.necso = necso  # auto comupte based on package file length if none
-        if necso is not None:
-            self.dnecso = necso*self.mo//2
+        self.necso = None   # auto comupte based on package file length and target_redundancy
+        self.target_redundancy = target_redundancy
+        # self.dnecso = necso*self.mo//2
 
         # Mask : random bytes and integerts, generation: secrets.token_bytes(256) , random.randint(0,3S)
         self.rand_mask = b'\xaf\x92i\xa9\xf1\x0c"\xc2\xf4\xe4\xc6\xa80\'j\xc6w\x08h\xc8)H\xb9\xfa\xb5\x93&\x04!\xcd\xc7\xcbw\x98\x05Z\xda\x01\xacP\x05I\xbe\\y\x8e\xff\xb2\x13\\p\xab\xd8m\x19\x97\xae\xfe\xba\x04\x94\xc5\x90\xb1c\n\xa9[\\i\xfd\xc9^\xf8do\xc5\xa8\xceQ\x12\x01\xb9&n\xaa\xfa\xc9\xf8I\xe1\xc4\xc7g\x045#\x17\x9a`\x08s\x9fG\xd9Y\xbd\xb9R}=G|Ah\xd5\x93\xbd\xb3\nrJ\xf3~\xc6\xa6\xd0\xaeM\x1a:b\xf3*XR<\r\xe0-\xeb\xf5\xd8\x1c\xd7\xb6\x1f.\xe4\x04\x01rNoWkt\xad)\x9f\xd0\x8b\xf5\xe7\x021#\xc7\x85\xb3\xac(|D\xa1\x1c\x8f\x17\xc0<\xf4\xa3\x8d\xf0*\x92c\x00\x0b\xbf^\x88\x1a4\xdd\n\x97d>e[\n\xff\xe1\x01\xab\x98C\x07erG\xce\xdb\xa1m\x17\xab1D\x00\xda\xb3\x9c\xa0\x8b\x19P8\x16Cun\xd97`\xdf\xcd\x95\x9e\x0f9\x16\x90\xff\xfaJ\xe6\xb7\xbaI\x97\xda\xc2\xcd\x82'
@@ -112,6 +119,7 @@ class Container:
         # Statistics
         self.inner_redundancy = None
         self.outer_redundancy = None
+        self.information_density = None
 
         self.inner_corrections = 0
         self.outer_corrections = 0
@@ -157,11 +165,12 @@ class Container:
            then column 2, and so on."""
         self.binary_size = len(binary_data)
         # zip data
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-             zip_file.writestr('information_package', io.BytesIO( binary_data ).getvalue() )
-        binary_data = zip_buffer.getvalue()
-        del( zip_buffer )
+        if self.auto_zip:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                 zip_file.writestr('information_package', io.BytesIO( binary_data ).getvalue() )
+            binary_data = zip_buffer.getvalue()
+            del( zip_buffer )
         # mask data
         binary_data = self.mask_bytes(binary_data)
         binary_data = bytesutils.split_bytes_in_four(binary_data)
@@ -176,7 +185,7 @@ class Container:
         pr = 0.4 # goal: 40% redundancy
         if self.necso == None:
             dmo = self.mo // 2
-            dnecso = int( pr / (1 - pr) * self.dk)
+            dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
             dnecso_e = dnecso // dmo + 1
             dnecso = dnecso_e * dmo
             self.dnecso = dnecso
@@ -578,11 +587,12 @@ class Container:
         self.binary_data = bytesutils.merge_four_bytes_in_one(self.binary_data)
               
         self.binary_data = self.mask_bytes(self.binary_data)
-        
-        zip_buffer2 = io.BytesIO( self.binary_data )
-        with zipfile.ZipFile(zip_buffer2, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-            self.binary_data = zip_file.read('information_package')
-        del( zip_buffer2 )
+
+        if self.auto_zip:
+            zip_buffer2 = io.BytesIO( self.binary_data )
+            with zipfile.ZipFile(zip_buffer2, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                self.binary_data = zip_file.read('information_package')
+            del( zip_buffer2 )
        
         self.binary_size = len(self.binary_data)
         return self.binary_data 
@@ -598,6 +608,7 @@ class Container:
         # redundancy
         self.inner_redundancy = (self.N-self.K)/self.N
         self.outer_redundancy = self.dnecso/self.segments_count
+        self.information_density = 2 * (self.K/self.N) * (self.n/(self.n - self.necso))
 
         return {'redundancy'   : { 'inner': str(self.inner_redundancy),
                                    'outer': str(self.outer_redundancy) },
@@ -609,7 +620,8 @@ class Container:
                 'capacity'     : { 'max_segments_block': str(self.n),
                                    'block_capacity_bytes': str( self.n * ((self.K-self.I)*self.mi//8)  ),
                                    'max_segments_index': str( 2**(self.I1*self.mi)-1 ),
-                                   'total_capacity_bytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8)  )},
+                                   'total_capacity_bytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8)  ),
+                                   'information_density': str(self.information_density)},
                 'parameters'   : { 'mo': str(self.mo),
                                    'mi': str(self.mi),
                                    'N': str(self.N),

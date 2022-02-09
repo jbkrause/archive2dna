@@ -17,8 +17,8 @@ This software enables long term preservation of information in
 DNA, typically for centuries at room temperature (depending
 on the DNA conditioning). 
 
-Default parameters cover a wide range of use cases. When using
-default parameters no information is required to decode an 
+Default parameters cover a wide range of information package sizes. 
+When using default parameters no information is required to decode an 
 information package from its DNA representation.
 
 Reed Solomon error correcting is applied along two dimensions 
@@ -177,7 +177,7 @@ bits2dna_dict = { '00' : 'A',
 ### Index
 
 The index is composed of two parts. The upper part contains a
-numeration of the fragments starting at 1. The lower part consists
+numeration of the fragments starting at 0. The lower part consists
 of partial countdowns to the end of outer code error correcting
 symbols and end of messages (the actual data to preserve). These 
 countdowns enable auto detection of the mentioned parameters even if
@@ -215,12 +215,15 @@ def id2primer(package_id, length=5):
 
 ### Zipping
 
-At the very begin of the encoding process, the binary data is zipped. It is
-unzipped at the end of decoding.
+At the very begin of the encoding process, the information package is zipped by default. 
+It is unzipped at the end of decoding. This feature may be turned off if the
+package to archive is already a ZIP file or another conainter supporting
+padding at the end (i.e. that empty bytes are added the end of the file).
 
 This ensures that:
-* homogeneous sections of data are reduced
-* data size is limited
+* a checksum of the package is taken before encoding and checked at decoding
+* homogeneous sections of data are reduced by compression (they are problematic in DNA)
+* informatio package size is reduced
 * padding of last DNA segment when it is restored via outer code is removed (as ZIP ingnores trailing zeroes) 
 
 

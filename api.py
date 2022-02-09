@@ -55,7 +55,7 @@ def process_encode():
         """encode binary to DNA"""
         package_id = request.form.get('id')
         data = request.files.get('data').read()
-        c = package.Container(package_id=package_id, necso=None, primer_length=5)
+        c = package.Container(package_id=package_id, primer_length=5)
         c.load_binary(data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -81,7 +81,7 @@ def process_decode():
     if request.method == 'POST':
         """decode DNA to binary"""
         dna = request.get_data().decode('utf-8')
-        c = package.Container(package_id='does_not_matter', necso=None, primer_length=5)
+        c = package.Container(package_id='does_not_matter', primer_length=5)
         c.load_dna( str(dna) )
         c.check_and_correct_logical_redundancy()
         output_bytes = c.write_binary()
