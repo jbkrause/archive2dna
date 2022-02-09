@@ -83,7 +83,8 @@ class Representation:
         return self.column_index.keys()
                     
     def getcolumn(self, n, s=None):
-        """Retruns whole column of index n."""
+        """Retruns whole column of index n.
+        An optional slice s may be specified to restrict returned range."""
         if s==None:
             return self.data[ self.column_index[n]]['column']
         else:
@@ -98,6 +99,9 @@ class Representation:
     #        self.data[ self.column_index[n]]['column'][i+start_at] = column[i]        
 
     def getline(self, n, s=None):
+        """Returns whole line n by default. 
+        An optional slice s may be specified to restrict returned range."""
+        # TODO: optimize. Should not get whole column each time but rather rely on getpos.
         line = array.array('b')
         if s == None:
             # TODO: performances, insure index sorted and do not sort here
@@ -106,7 +110,10 @@ class Representation:
                 if len(col) > n:
                     line.append( col[n] )
         else:
-            raise "not implemented"
+            for i in range( s.start, s.stop ):
+                col = self.getcolumn(i)
+                if len(col) > n:
+                    line.append( col[n] )
         return line
 
     #def setline(self, n, line, start_at=1):

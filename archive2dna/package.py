@@ -85,8 +85,10 @@ class Container:
         self.dk = None      # dk = k*mo//2 , auto compute on basis of package file length
         self.dn = None      # dn is computed on basis of dk, i.e. dn = dk + dnecso
         self.necso = None   # auto comupte based on package file length and target_redundancy
-        self.target_redundancy = target_redundancy
         # self.dnecso = necso*self.mo//2
+        self.target_redundancy = target_redundancy
+        self.numblocks = None # number of outer code blocks
+        self.dblocksize = None
 
         # Mask : random bytes and integerts, generation: secrets.token_bytes(256) , random.randint(0,3S)
         self.rand_mask = b'\xaf\x92i\xa9\xf1\x0c"\xc2\xf4\xe4\xc6\xa80\'j\xc6w\x08h\xc8)H\xb9\xfa\xb5\x93&\x04!\xcd\xc7\xcbw\x98\x05Z\xda\x01\xacP\x05I\xbe\\y\x8e\xff\xb2\x13\\p\xab\xd8m\x19\x97\xae\xfe\xba\x04\x94\xc5\x90\xb1c\n\xa9[\\i\xfd\xc9^\xf8do\xc5\xa8\xceQ\x12\x01\xb9&n\xaa\xfa\xc9\xf8I\xe1\xc4\xc7g\x045#\x17\x9a`\x08s\x9fG\xd9Y\xbd\xb9R}=G|Ah\xd5\x93\xbd\xb3\nrJ\xf3~\xc6\xa6\xd0\xaeM\x1a:b\xf3*XR<\r\xe0-\xeb\xf5\xd8\x1c\xd7\xb6\x1f.\xe4\x04\x01rNoWkt\xad)\x9f\xd0\x8b\xf5\xe7\x021#\xc7\x85\xb3\xac(|D\xa1\x1c\x8f\x17\xc0<\xf4\xa3\x8d\xf0*\x92c\x00\x0b\xbf^\x88\x1a4\xdd\n\x97d>e[\n\xff\xe1\x01\xab\x98C\x07erG\xce\xdb\xa1m\x17\xab1D\x00\xda\xb3\x9c\xa0\x8b\x19P8\x16Cun\xd97`\xdf\xcd\x95\x9e\x0f9\x16\x90\xff\xfaJ\xe6\xb7\xbaI\x97\xda\xc2\xcd\x82'
@@ -180,16 +182,20 @@ class Container:
         if len(binary_data) % (self.dK-self.dI) != 0: # if last segment is not full
             self.dk += 1  
 
-        # If outer code lenght self.necso is not specified, 
-        # auto compute so we have about 40% outer redundancy
-        pr = 0.4 # goal: 40% redundancy
-        if self.necso == None:
-            dmo = self.mo // 2
-            dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
-            dnecso_e = dnecso // dmo + 1
-            dnecso = dnecso_e * dmo
-            self.dnecso = dnecso
-            self.necso  = dnecso // dmo
+        # use target_redundancy to compute necso
+        dmo = self.mo // 2
+        dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
+        dnecso_e = dnecso // dmo + 1
+        dnecso = dnecso_e * dmo
+        self.dnecso = dnecso
+        self.necso  = dnecso // dmo
+        
+        # compute number of blocks and their size
+        self.numblocks = self.dk // (self.n * self.mo // 2 - self.dnecso)
+        if self.dk % (self.n * self.mo // 2) != 0: 
+            self.numblocks += 1
+        # to avoid a last block that may be small, segments are distributed equally in all blocs 
+        self.dblocksize = (self.dk // self.numblocks ) + self.dnecso 
 
         # set total number of columns
         self.dn = self.dk + self.dnecso
@@ -201,11 +207,13 @@ class Container:
                                                    n_lines = n_lines,
                                                    n_columns = n_columns )
 
-        # shift extend data to final structure dn x dk                                           
+        # shift extend data to final structure of dn x dk blocks   
+        # insert lines for inner code error correcting caracters and index
         delta_lines   = self.dN - n_lines
-        self.data.insertlines(0,n=delta_lines)        
-
-        self.data.insertcolumns(0,n=self.dnecso)
+        self.data.insertlines(0,n=delta_lines)
+        # insert columns for outer code error correcting symbols for each block
+        for blk in range(self.numblocks):
+            self.data.insertcolumns(blk*self.dblocksize, n=self.dnecso)
 
      
     ##################################
@@ -220,34 +228,32 @@ class Container:
 
         # Initialize Reed Solomon outer coder
         outerCoder =  RSCodec(self.necso, nsize=self.n) # Using n-k = necs error correcting codes
-        
-        ## numpy way
+
         n_lines   = self.dK-self.dI
         n_columns = self.dk
         line_offset_ori   = self.dN - n_lines
 
-        
-        data = self.data.tonumpy()
-        
-        # Create error outer correcting code sybolsline by bline    
-        for i in range(self.dK-self.dI):
-        
-            # Read line in DNA representation
-            dline = self.data.getline( i+line_offset_ori )[self.dnecso:]
-            line_array = array.array('i', list(dline))
-            line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
-            
-            # Run Reed Solomon to compute error correctig symblos
-            line2 = outerCoder.encode( line_array_mo )
-            ecc = line2[-self.necso:]
-            ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
-            
-            # Store coded_message (= message + ecc) in data
-            line_offset = self.dnecsi + self.dI            
-            out = list(ecc_bases) +  list(line_array)
-            for b in range(len(out)):
-                self.data.setpos( i+line_offset , b , out[b]) 
+        # For each block         
+        for blk in range(self.numblocks):
 
+            # Create error outer correcting code symbols line by line    
+            for i in range(self.dK-self.dI):
+            
+                # Read line in DNA representation
+                dline = self.data.getline( i+line_offset_ori, s=slice(blk*self.dblocksize, (blk+1)*self.dblocksize) )[self.dnecso:]
+                line_array = array.array('i', list(dline))
+                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
+                
+                # Run Reed Solomon to compute error correctig symblos
+                line2 = outerCoder.encode( line_array_mo )
+                ecc = line2[-self.necso:]
+                ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
+                
+                # Store coded_message (= message + ecc) in data
+                line_offset = self.dnecsi + self.dI            
+                out = list(ecc_bases) + list(line_array)
+                for b in range(len(out)):
+                    self.data.setpos( i+line_offset , blk*self.dblocksize + b , out[b]) 
 
     def add_index(self):
         """Adds index i.e. the identification of DNA segments (1 segment = 1 column):
@@ -616,19 +622,19 @@ class Container:
                                    'size_min': str(self.segments_min_size),
                                    'count': str(self.segments_count) },
                 'binary_data'  : { 'size_bytes': str(self.binary_size),
-                                   'blocks': str(1) },
-                'capacity'     : { 'max_segments_block': str(self.n),
-                                   'block_capacity_bytes': str( self.n * ((self.K-self.I)*self.mi//8)  ),
-                                   'max_segments_index': str( 2**(self.I1*self.mi)-1 ),
-                                   'total_capacity_bytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8)  ),
+                                   'blocks': str(self.numblocks) },
+                'capacity'     : { 'max_segments_block': str(self.n * self.dmo),
+                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi//8) / 10**6  ),
+                                   'max_segments_index': str( (2**(self.I1*self.mi)-1) * self.dmo ),
+                                   'total_capacity_megabytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8) *self.dmo / 10**6  ),
                                    'information_density': str(self.information_density)},
                 'parameters'   : { 'mo': str(self.mo),
                                    'mi': str(self.mi),
                                    'N': str(self.N),
                                    'K': str(self.K),
                                    'necsi': str(self.necsi),
-                                   'n_max': str(self.n),
-                                   'k_max': str(self.n - self.necso),
+                                   'n': str(self.n),
+                                   'k': str(self.n - self.necso),
                                    'necso': str(self.necso),
                                    'I': str(self.I),
                                    'I1': str(self.I1),
