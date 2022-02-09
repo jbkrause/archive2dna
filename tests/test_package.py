@@ -15,6 +15,9 @@ test_tmp_dir = test_tmp_dir.replace('/', os.sep)
 test_dna_tmp = test_tmp_dir + 'dna.txt'
 test_aip_tmp = test_tmp_dir + 'aip.zip'
 
+if not os.path.isdir(test_tmp_dir):
+    os.mkdir(test_tmp_dir)
+
 class PackageModudle(TestCase):
 
 

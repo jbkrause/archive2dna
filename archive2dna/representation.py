@@ -35,6 +35,9 @@ class Representation:
                 # if column will not be fully filled
                 if i_to > len(data_bytes):
                     i_to = len(data_bytes)
+                    delta = i_to - len(data_bytes)
+                    for j in range(delta): # padding witt zeros
+                        self.data[-1]['column'].append(0)
                 self.data.append( {'index':i,
                                    'column':array.array('b', list( data_bytes[ i_from : i_to  ] ) )} )
             self.index_columns_num_currens()
@@ -48,6 +51,11 @@ class Representation:
                 self.data.append( {'index':i, 'column':array.array('b') } )
                 for j in range(len(data_dna[i])):
                     self.data[-1]['column'].append( dna.dna2bits( data_dna[i][j] ) )
+                if len(data_dna[i]) < n_lines: # padding with zeroes
+                    if i != n_columns-1: # not for last segement that is shorter
+                        delta = n_lines - len(data_dna[i])
+                        for j in range(delta):
+                            self.data[-1]['column'].append(0)
             self.index_columns_num_currens()
             
     def index_columns_num_currens(self):
@@ -95,7 +103,7 @@ class Representation:
             
     def setpos(self, line, column, value):
         self.data[ self.column_index[column]]['column'][line]=value
-        
+
     def insertlines(self, position, n=1):
         """Inserts n lines at position"""
         for i in range(len(self.data)):
@@ -121,10 +129,16 @@ class Representation:
             
         self.size[1] += n
         self.reindex_columns()
-
+        
+    def addcolumn(self, index):
+        """Inserts n columns at index"""
+        self.data.append({'index':index,
+                          'column':array.array('b', [0]*self.size[0])})
+        self.size[1] += 1
+        self.reindex_columns()
+        
     def popcolumn(self, index):
         """Removes column at index"""
-        
         col = self.data.pop( self.column_index[index] )
         self.size[1] -= 1
         self.reindex_columns()

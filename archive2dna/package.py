@@ -19,6 +19,7 @@ import math
 import array
 import io
 import zipfile
+from statistics import median, mean
 
 # external
 import numpy as np
@@ -366,20 +367,20 @@ class Container:
 
     def compute_segments_sizes(self):
         """Compute DNA segments sizes, as well as max, median and average length"""
-        ss = np.full( (len(self.dna),), 0 )        
+        ss = []
         for i in range(len(self.dna)):
-            ss[i] =  len(self.dna[i]) 
+            ss.append(len(self.dna[i])) 
         self.segments_sizes = ss
-        self.segments_max_size = ss.max()
-        self.segments_min_size = ss.min()
-        self.segments_average_size = ss.mean()
-        self.segments_median_size = int(np.median(ss))
+        self.segments_max_size = max(ss)
+        self.segments_min_size = min(ss)
+        self.segments_average_size = mean(ss)
+        self.segments_median_size = int(median(ss))
     
     def dna_to_array(self):
         """Reformats DNA segments strings into array"""
         
         self.data = representation.Representation( data_dna=self.dna,
-                                                   n_lines = self.segments_max_size,
+                                                   n_lines = self.segments_median_size,
                                                    n_columns = len(self.dna) )   
     
                 
@@ -396,7 +397,7 @@ class Container:
                 
     def decode_inner_code(self):
         """Decode inner code"""
-        
+
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
 
         segments_to_destroy = []
@@ -434,19 +435,14 @@ class Container:
                 # we need to convert decoded message to bases to do corrections
                 decoded_bases = dna.split_bases(decoded_msg, block_size=self.dmi)
                 decoded_ecc   = dna.split_bases(decoded_msgecc, block_size=self.dmi)[-self.dnecsi:]
-                scope = min( [ len(decoded_bases), len( self.data[self.dnecsi:,i] ) ] ) 
-                for j in range( scope ):
-                    if self.data[self.dnecsi+j,i] != decoded_bases[j] :
+                for j in range( len(decoded_bases) ):
+                    if self.data.getpos(self.dnecsi+j, i) != decoded_bases[j] :
                         self.inner_corrections += 1
                         self.data.setpos( self.dnecsi+j, i , decoded_bases[j] )
 
-        #self.data = np.delete( self.data, [segments_to_destroy], axis=1 )
         for i in reversed( sorted(segments_to_destroy)):
-           print( self.data.column_indexes() )
-           col = self.data.popcolumn(i)
-           print(col)
-           print( self.data.column_indexes() )
-                                  
+            col = self.data.popcolumn(i)
+
 
     def sort_segments(self):
         """Sorts segments by their index. If a segment is not there its columns is empty: it 
@@ -497,20 +493,21 @@ class Container:
         def missing_indices(l):
             l2 = sorted(l)
             start, end = l2[0], l2[-1]
-            return sorted(set(range(start, end + 1)).difference(l2))            
+            return sorted(set(range(start, end + 1)).difference(l2))
+            
         missing_indx = missing_indices(indices)
         self.segments_lost += len(missing_indx)
-
+        
         # Extend data array with missing or unrecovered DNA segments (if required)
         if last_index > max(indices):
-            missing_indx2 = range( max(indices)+1, last_index+1 )
+            missing_indx2 = list( range( max(indices)+1, last_index+1 ) )
             missing_indx = missing_indx + missing_indx2
         for x in missing_indx:
-            self.data.insertcolumns(x)
-        
+            self.data.addcolumn(x)
+  
         # Sort data array according to index
         self.data.reindex_columns()
-                
+               
         # Auto determine necso (using first countdown in I2)
         if self.necso is None:
             for i in range(len(count_down)):
@@ -518,7 +515,6 @@ class Container:
                     self.dnecso = indices[i] + count_down[i] + 1
                     self.necso = self.dnecso // self.dmo
                     break
-
 
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
@@ -531,7 +527,7 @@ class Container:
             msg = dline[(self.necso*self.dmo):]
 
             msga = array.array('i', list(msg))  
-            ecca = array.array('i', list(ecc))  
+            ecca = array.array('i', list(ecc)) 
                 
             msgm = dna.merge_bases(msga, block_size=self.dmo) 
             eccm = dna.merge_bases(ecca, block_size=self.dmo)
@@ -549,14 +545,13 @@ class Container:
                                        str(e)
                                     
             if n_corrections > 0:
-                #FIXME: continue here 2022-02-08
                 self.outer_corrections += n_corrections
                 decoded_bases = dna.split_bases(decoded_block, block_size=self.dmo)
-                db = list(decoded_bases)
-                scope = min( [ len(decoded_bases), len( self.data.getline(i+line_offset)[self.dnecso:] ) ] ) 
+                #TODO : should not be restricted to scope but full range of decodec bases
+                line = self.data.getline(i+line_offset)
+                scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
                 for j in range( scope ) :
-                    self.data.setpos( i+line_offset,self.dnecso+j , db[j] )
- 
+                    self.data.setpos( i+line_offset, self.dnecso+j , decoded_bases[j] ) 
                 
     def check_and_correct_logical_redundancy(self):
         """Processes logical redundency: decode innercode, sort segments and decodes outer code."""
