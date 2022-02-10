@@ -199,6 +199,7 @@ class Container:
         per_block_symbols = per_block // self.dmo
         if per_block  % self.dmo != 0:
             per_block_symbols += 1
+        #print(per_block_symbols, self.dnecso)
         self.dblocksize = per_block_symbols*dmo + self.dnecso
         #print('blocksiuze',self.dblocksize)
 
@@ -279,7 +280,11 @@ class Container:
                 x4 = bytesutils.split_bytes_in_four(x)
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + 4*j+l, i , x4[l] )
-            
+        
+        #print('Index')        
+        #D = self.data.tonumpy()
+        #print( [D[self.dnecsi:self.dnecsi+self.dI1,:self.dblocksize]] )
+        
         # Count down for end of segment, ends at 0 (in index section I2)
         #max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
         #for i in range(max_range):
@@ -287,22 +292,25 @@ class Container:
         #    x4 = bytesutils.split_bytes_in_four(b)
         #    for l in range(len(x4)):
         #        self.data.setpos( self.dnecsi + l+self.dI1, self.data.size[1]-i-1 , x4[l] )
-        for blk in range(self.numblocks): # blk*self.dblocksize
+        for blk in range(self.numblocks): 
             if blk < self.numblocks-1:
                 blocklen = self.dblocksize
             else:
-                blocklen = self.data.size[1] - self.numblocks * self.dblocksize
-            #print('blocklen', blocklen)
+                if self.data.size[1] > self.numblocks * self.dblocksize:
+                    blocklen = self.data.size[1] - self.numblocks * self.dblocksize
+                else:
+                    blocklen = self.data.size[1]
             for i in range(blocklen):
+                #print(i, blocklen - 256)
                 if i < blocklen - 256: # no count down, set to 0
                     b = dna.int2bytes(0, n=1)
-                else: # startiing count down
+                else: # starting count down
                     b = dna.int2bytes(blocklen-i-1, n=1)
-                    #print(i, blocklen-i-1)
                 x4 = bytesutils.split_bytes_in_four(b)
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] )
-                    
+ 
+        #print('End of block')                     
         #D = self.data.tonumpy()
         #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] )
         
@@ -322,7 +330,8 @@ class Container:
                         self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] ) 
 
                         # else already set to 0 by code just above
-
+ 
+        #print('End of necso') 
         #D = self.data.tonumpy()
         #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dnecso]] )
 
@@ -549,7 +558,7 @@ class Container:
         #start_at = int( math.ceil( (self.dnecso + dblocksize_approx)/2 ) )
         start_at = self.dnecso + 1
         for i in range(start_at, len(count_down)):
-            #print(i, indices[i])
+            #print(i, count_down[i])
             if count_down[i] != 0:
                 self.dblocksize = indices[i] + count_down[i] + 1
                 break
@@ -571,11 +580,11 @@ class Container:
                 last_index = indices[-i] + count_down[-i]
                 break
 
-        print('inner_corrections :', self.inner_corrections)        
-        print('dnecso :', self.dnecso, self.dnecso/self.dmo)
-        print('dblocksize :', self.dblocksize)
-        print('numblocks :', self.numblocks)
-        print('last_index :', last_index)
+        #print('inner_corrections :', self.inner_corrections)        
+        #print('dnecso :', self.dnecso, self.dnecso/self.dmo)
+        #print('dblocksize :', self.dblocksize)
+        #print('numblocks :', self.numblocks)
+        #print('last_index :', last_index)
                 
         # Find missing segments indices (if any)
         def missing_indices(l):
@@ -600,11 +609,9 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        self.data.reindex_columns()        
+        self.data.reindex_columns()                        
 
-                
-
-    def decode_outer_code(self):
+    def decode_outer_code_1block(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
         outerCoder =  RSCodec(self.necso, nsize=self.n) 
         line_offset = self.dnecsi + self.dI
@@ -640,6 +647,49 @@ class Container:
                 scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
                 for j in range( scope ) :
                     self.data.setpos( i+line_offset, self.dnecso+j , decoded_bases[j] ) 
+        
+    def decode_outer_code(self):
+        """Decodes Reed Solomon outer code: restore and correct segments"""
+        outerCoder =  RSCodec(self.necso, nsize=self.n) 
+        line_offset = self.dnecsi + self.dI
+        
+        for blk in range(self.numblocks):
+        
+            for i in range(self.data.size[0]-line_offset):
+                
+                block_start = blk*self.dblocksize
+                block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
+                dline = self.data.getline( i+line_offset, s=slice(block_start, block_stop) )
+                
+                ecc = dline[:(self.necso*self.dmo)]
+                msg = dline[(self.necso*self.dmo):]
+
+                msga = array.array('i', list(msg))  
+                ecca = array.array('i', list(ecc)) 
+                    
+                msgm = dna.merge_bases(msga, block_size=self.dmo) 
+                eccm = dna.merge_bases(ecca, block_size=self.dmo)
+
+                try:
+                    n_corrections = 0
+                    decoded_block, decoded_msgecc, errata_pos = outerCoder.decode(msgm+eccm)
+                    n_corrections = len(errata_pos)
+                except Exception as e:
+
+                    self.error = True
+                    self.error_message += 'Decode outer code error on line ' +\
+                                           str(i) +\
+                                           '. Error: ' +\
+                                           str(e) + '\n'
+                                        
+                if n_corrections > 0:
+                    self.outer_corrections += n_corrections
+                    decoded_bases = dna.split_bases(decoded_block, block_size=self.dmo)
+                    #TODO : should not be restricted to scope but full range of decodec bases
+                    line = self.data.getline(i+line_offset)
+                    scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
+                    for j in range( scope ) :
+                        self.data.setpos( i+line_offset, self.dnecso+j + blk*self.dblocksize , decoded_bases[j] ) 
                 
     def check_and_correct_logical_redundancy(self):
         """Processes logical redundency: decode innercode, sort segments and decodes outer code."""
