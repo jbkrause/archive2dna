@@ -409,12 +409,11 @@ class Container:
     def decode_inner_code(self):
         """Decode inner code"""
 
+        # Load Reed Solomon codec
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
 
         segments_to_destroy = []
-
         for i in range(self.data.size[1]):
-            #print('---- inner code - decoding segment', i , '----')
 
             # Read inner code : message       
             dcol = self.data.getcolumn( i )[self.dnecsi:]
@@ -430,25 +429,25 @@ class Container:
             darray_ba = bytearray(list(darray_mi))
             ecc_ba = bytearray(list(ecc_mi))
             coded_msg_ba = darray_ba + ecc_ba
-
+            
+            # Perform reed solomon inner code errer check and correctio
             n_corrections = 0
             try: 
                 decoded_msg, decoded_msgecc, errata_pos = innerCoder.decode( bytes(coded_msg_ba) )
                 n_corrections = len(errata_pos)
-
             except Exception as e:
                 self.segments_beyond_repair += 1
-                segments_to_destroy.append(i)   
-             
+                segments_to_destroy.append(i) # segment cannot be repaired and flagged for deletion
             if n_corrections > 0:
-                # we need to convert decoded message to bases to do corrections
+                # Convert decoded message to bases to apply corrections
                 decoded_bases = dna.split_bases(decoded_msg, block_size=self.dmi)
                 decoded_ecc   = dna.split_bases(decoded_msgecc, block_size=self.dmi)[-self.dnecsi:]
                 for j in range( len(decoded_bases) ):
                     if self.data.getpos(self.dnecsi+j, i) != decoded_bases[j] :
                         self.inner_corrections += 1
                         self.data.setpos( self.dnecsi+j, i , decoded_bases[j] )
-
+                        
+        # Deleting corrupted segments that could not be repeires (flagged for deletion)
         for i in reversed( sorted(segments_to_destroy)):
             col = self.data.popcolumn(i)
 
@@ -480,13 +479,62 @@ class Container:
             indices.append( get_index( index_col[:self.dI1] ) )
             count_down.append( get_index( index_col[self.dI1:] ) )
             self.data.data[i]['index'] = indices[i]
+
+        # Get necso (using first countdown in I2)
+        # TODO: make more robust, i.e. combine countdown for from all blocks
+        for i in range(len(count_down)):
+            if count_down[i] != 0:
+                self.dnecso = indices[i] + count_down[i] + 1
+                self.necso = self.dnecso // self.dmo
+                break
+
+        # Get number of blocks and their sizes
+        # TODO: make more robust, use countdowns for from all blocks
+        #       espetially if a lot of segments are lost we should still
+        #       find the right number of blocks
+        # In theory, 2 approachea are possible:
+        #   1. recompute using number of segments and necso (as done at encoding)
+        #   2. detect form countdonw
+        # Here, they are combined.
+        
+        # compute number of blocks and their size
+        dk_approx = self.data.size[1]
+        self.numblocks = dk_approx // (self.n * self.mo // 2 - self.dnecso)
+        if dk_approx % (self.n * self.mo // 2) != 0: 
+            self.numblocks += 1
             
-        # Compute last segment position even if it was lost (using second countdown in I2)
+        # find first block end
+        #dblocksize_approx = (dk_approximation // self.numblocks ) + self.dnecso 
+        #start_at = int( math.ceil( (self.dnecso + dblocksize_approx)/2 ) )
+        start_at = self.dnecso + 1
+        for i in range(start_at, len(count_down)):
+            print(i, indices[i])
+            if count_down[i] != 0:
+                self.dblocksize = indices[i] + count_down[i] + 1
+                break
+        
+        print('dnecso;', self.dnecso, self.dnecso/self.dmo)
+        print('dblocksize;', self.dblocksize)
+        print('numblocks;', self.numblocks)
+        raise
+            
+        ## 1 block approach    
+        ## Compute last segment position even if it was lost (using second countdown in I2)
+        #last_index = None
+        #for i in range(len(count_down)):
+        #    if count_down[-i] != 0: # take fisrt index for non null countdowns
+        #        last_index = indices[-i] + count_down[-i]
+        #        break
+
+        self.dnumblocks = 0
+        block_end
         last_index = None
         for i in range(len(count_down)):
             if count_down[-i] != 0: # take fisrt index for non null countdowns
                 last_index = indices[-i] + count_down[-i]
                 break
+
+
 
         # Find missing segments indices (if any)
         def missing_indices(l):
@@ -509,17 +557,7 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        self.data.reindex_columns()
-        
-
-               
-        # Auto determine necso (using first countdown in I2)
-        if self.necso is None:
-            for i in range(len(count_down)):
-                if count_down[i] != 0:
-                    self.dnecso = indices[i] + count_down[i] + 1
-                    self.necso = self.dnecso // self.dmo
-                    break
+        self.data.reindex_columns()               
 
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
@@ -547,7 +585,7 @@ class Container:
                 self.error_message += 'Decode outer code error on line ' +\
                                        str(i) +\
                                        '. Error: ' +\
-                                       str(e)
+                                       str(e) + '\n'
                                     
             if n_corrections > 0:
                 self.outer_corrections += n_corrections
