@@ -179,9 +179,11 @@ class Container:
         if len(binary_data) % (self.dK-self.dI) != 0: # if last segment is not full
             self.dk += 1  
 
-        # use target_redundancy to compute necso
+        # use target_redundancy to compute necso (over all)
         dmo = self.mo // 2
-        dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
+        #dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
+        dnk = min([self.dk, self.n*dmo])
+        dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * dnk)
         dnecso_e = dnecso // dmo + 1
         dnecso = dnecso_e * dmo
         self.dnecso = dnecso
@@ -191,8 +193,14 @@ class Container:
         self.numblocks = self.dk // (self.n * self.mo // 2 - self.dnecso)
         if self.dk % (self.n * self.mo // 2) != 0: 
             self.numblocks += 1
-        # to avoid a last block that may be small, segments are distributed equally in all blocs 
-        self.dblocksize = (self.dk // self.numblocks ) + self.dnecso 
+        # to avoid a last block that may be small, segments are distributed equally in all blocs
+        # number of segments mus be a multiple of dmo
+        per_block = self.dk // self.numblocks
+        per_block_symbols = per_block // self.dmo
+        if per_block  % self.dmo != 0:
+            per_block_symbols += 1
+        self.dblocksize = per_block_symbols*dmo + self.dnecso
+        #print('blocksiuze',self.dblocksize)
 
         # set total number of columns
         self.dn = self.dk + self.dnecso
@@ -237,7 +245,9 @@ class Container:
             for i in range(self.dK-self.dI):
             
                 # Read line in DNA representation
-                dline = self.data.getline( i+line_offset_ori, s=slice(blk*self.dblocksize, (blk+1)*self.dblocksize) )[self.dnecso:]
+                block_start = blk*self.dblocksize
+                block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
+                dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 line_array = array.array('i', list(dline))
                 line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
                 
@@ -261,7 +271,7 @@ class Container:
         """
         # TODO: hardocoded for mi=8, to be generalized
         
-       # Numerus currens of segments, starts at 0 (in index block I1)
+        # Numerus currens of segments, starts at 0 (in index block I1)
         for i in range(self.data.size[1]):
             b = dna.int2bytes(i, n=self.index_positions//8)
             for j in range(self.index_positions//8):
@@ -270,20 +280,51 @@ class Container:
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + 4*j+l, i , x4[l] )
             
-        # Count down for end of segment, ends at 0 (iin index block I2)
-        max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
-        for i in range(max_range):
-            b = dna.int2bytes(i, n=1)
-            x4 = bytesutils.split_bytes_in_four(b)
-            for l in range(len(x4)):
-                self.data.setpos( self.dnecsi + l+self.dI1, self.data.size[1]-i-1 , x4[l] )
-
+        # Count down for end of segment, ends at 0 (in index section I2)
+        #max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
+        #for i in range(max_range):
+        #    b = dna.int2bytes(i, n=1)
+        #    x4 = bytesutils.split_bytes_in_four(b)
+        #    for l in range(len(x4)):
+        #        self.data.setpos( self.dnecsi + l+self.dI1, self.data.size[1]-i-1 , x4[l] )
+        for blk in range(self.numblocks): # blk*self.dblocksize
+            if blk < self.numblocks-1:
+                blocklen = self.dblocksize
+            else:
+                blocklen = self.data.size[1] - self.numblocks * self.dblocksize
+            #print('blocklen', blocklen)
+            for i in range(blocklen):
+                if i < blocklen - 256: # no count down, set to 0
+                    b = dna.int2bytes(0, n=1)
+                else: # startiing count down
+                    b = dna.int2bytes(blocklen-i-1, n=1)
+                    #print(i, blocklen-i-1)
+                x4 = bytesutils.split_bytes_in_four(b)
+                for l in range(len(x4)):
+                    self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] )
+                    
+        #D = self.data.tonumpy()
+        #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] )
+        
         # Count down for end of outer code ecc, ends at 0 (in index block I2)
-        for i in range(max_range):
-            b = dna.int2bytes(i, n=1)
-            x4 = bytesutils.split_bytes_in_four(b)
-            for l in range(len(x4)):
-                self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
+        #for i in range(max_range):
+        #    b = dna.int2bytes(i, n=1)
+        #    x4 = bytesutils.split_bytes_in_four(b)
+        #    for l in range(len(x4)):
+        #        self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
+        for blk in range(self.numblocks):
+            for i in range(self.dnecso):
+                if i >= self.dnecso - 256: # do count down
+                    b = dna.int2bytes(self.dnecso-i-1, n=1)
+                    x4 = bytesutils.split_bytes_in_four(b)
+                    #print(i, self.dnecso-i-1, blk*self.dblocksize + i)
+                    for l in range(len(x4)):
+                        self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] ) 
+
+                        # else already set to 0 by code just above
+
+        #D = self.data.tonumpy()
+        #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dnecso]] )
 
         # Mask index using random numbers
         for i in range(self.data.size[1]):
@@ -314,7 +355,7 @@ class Container:
             ecc  = msg_coded[-self.necsi:]
             ecc_bases = dna.split_bases(ecc, block_size=self.dmi)
             for j in range(len(ecc_bases)):
-                self.data.setpos(j , i, ecc_bases[j])                    
+                self.data.setpos(j , i, ecc_bases[j])                
 
     def create_logical_redundancy(self):
         """Adds outer code, index, innercode"""
@@ -508,16 +549,14 @@ class Container:
         #start_at = int( math.ceil( (self.dnecso + dblocksize_approx)/2 ) )
         start_at = self.dnecso + 1
         for i in range(start_at, len(count_down)):
-            print(i, indices[i])
+            #print(i, indices[i])
             if count_down[i] != 0:
                 self.dblocksize = indices[i] + count_down[i] + 1
                 break
-        
-        print('dnecso;', self.dnecso, self.dnecso/self.dmo)
-        print('dblocksize;', self.dblocksize)
-        print('numblocks;', self.numblocks)
-        raise
-            
+                
+
+        #print( self.data.column_index )
+         
         ## 1 block approach    
         ## Compute last segment position even if it was lost (using second countdown in I2)
         #last_index = None
@@ -525,17 +564,19 @@ class Container:
         #    if count_down[-i] != 0: # take fisrt index for non null countdowns
         #        last_index = indices[-i] + count_down[-i]
         #        break
-
-        self.dnumblocks = 0
-        block_end
+        
         last_index = None
         for i in range(len(count_down)):
             if count_down[-i] != 0: # take fisrt index for non null countdowns
                 last_index = indices[-i] + count_down[-i]
                 break
 
-
-
+        print('inner_corrections :', self.inner_corrections)        
+        print('dnecso :', self.dnecso, self.dnecso/self.dmo)
+        print('dblocksize :', self.dblocksize)
+        print('numblocks :', self.numblocks)
+        print('last_index :', last_index)
+                
         # Find missing segments indices (if any)
         def missing_indices(l):
             l2 = sorted(l)
@@ -546,8 +587,10 @@ class Container:
         self.segments_lost += len(missing_indx)
 
         #print(self.data.column_index)
+        #print(indices)
         #print(missing_indx)
         #print(last_index)
+        #raise
         
         # Extend data array with missing or unrecovered DNA segments (if required)
         if last_index > max(indices):
@@ -557,7 +600,9 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        self.data.reindex_columns()               
+        self.data.reindex_columns()        
+
+                
 
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
@@ -642,7 +687,7 @@ class Container:
         # redundancy
         self.inner_redundancy = (self.N-self.K)/self.N
         self.outer_redundancy = self.dnecso/self.segments_count
-        self.information_density = 2 * (self.K/self.N) * (self.n/(self.n - self.necso))
+        self.information_density = 2 * (self.K/self.N) * (self.n-self.necso/self.n)
 
         return {'redundancy'   : { 'inner': str(self.inner_redundancy),
                                    'outer': str(self.outer_redundancy) },
@@ -651,10 +696,10 @@ class Container:
                                    'count': str(self.segments_count) },
                 'binary_data'  : { 'size_bytes': str(self.binary_size),
                                    'blocks': str(self.numblocks) },
-                'capacity'     : { 'max_segments_block': str(self.n * self.dmo),
-                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi//8) / 10**6  ),
+                'capacity'     : { 'max_segments_block': str(self.dblocksize),
+                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi//2) / (8*10**6)  ),
                                    'max_segments_index': str( (2**(self.I1*self.mi)-1) * self.dmo ),
-                                   'total_capacity_megabytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//8) *self.dmo / 10**6  ),
+                                   'total_capacity_megabytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//2) *self.dmo / (8*10**6)  ),
                                    'information_density': str(self.information_density)},
                 'parameters'   : { 'mo': str(self.mo),
                                    'mi': str(self.mi),
