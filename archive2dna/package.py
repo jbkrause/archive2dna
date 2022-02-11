@@ -21,9 +21,6 @@ import io
 import zipfile
 from statistics import median, mean
 
-# external
-import numpy as np
-
 # package
 from . import dna
 from . import bytesutils
