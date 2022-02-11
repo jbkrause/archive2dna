@@ -38,8 +38,6 @@ if cfg[cfg_set]['auto_zip'] == 'False':
     auto_zip = False
 else:
     auto_zip = True 
-    
-print(auto_zip)
 
 if len(sys.argv)==5:
     package_id = sys.argv[4]
