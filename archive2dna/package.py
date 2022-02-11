@@ -205,7 +205,7 @@ class Container:
         print('dblocksize :',self.dblocksize)
 
         # set total number of columns
-        self.dn = self.dk + self.dnecso
+        self.dn = self.dk + self.dnecso * self.numblocks
                 
         # load data    
         n_lines   = self.dK-self.dI
@@ -283,9 +283,7 @@ class Container:
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + 4*j+l, i , x4[l] )
         
-        #print('Index')        
-        #D = self.data.tonumpy()
-        #print( [D[self.dnecsi:self.dnecsi+self.dI1,:self.dblocksize]] )
+
         
         # Count down for end of segment, ends at 0 (in index section I2)
         #max_range = min([ self.data.size[1], 2**(self.index_length - self.index_positions)-1])
@@ -315,10 +313,7 @@ class Container:
                 x4 = bytesutils.split_bytes_in_four(b)
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] )
- 
-            #print('End of block')                     
-            #D = self.data.tonumpy()
-            #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] )
+
             
             # Count down for end of outer code ecc, ends at 0 (in index block I2)
             #for i in range(max_range):
@@ -338,11 +333,19 @@ class Container:
                         self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] ) 
 
                         # else already set to 0 by code just above
- 
-        #print('End of necso') 
-        #D = self.data.tonumpy()
-        #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dnecso]] )
 
+
+        D = self.data.tonumpy()
+        print('Shape', D.shape)
+        print('Index')        
+        print( [D[self.dnecsi:self.dnecsi+self.dI1,:self.dblocksize]] )
+        print('End of necso') 
+        print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dnecso]] )     
+        print('End of block')                     
+        print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] ) 
+        print('Data')
+        print( [D[self.dnecsi+self.dI:,self.dnecso:]] ) 
+        
         # Mask index using random numbers
         for i in range(self.data.size[1]):
             for j in range(self.dI):
@@ -368,11 +371,18 @@ class Container:
             # wiil return type bytearray even if input is array anyway !
             msg_coded = innerCoder.encode( bytes(darray_mi_ba) ) 
             
+            #if i > 1880:
+            #    print(i)
+            #    print(msg_coded)
+            
             # store error correcting code symbols
             ecc  = msg_coded[-self.necsi:]
             ecc_bases = dna.split_bases(ecc, block_size=self.dmi)
             for j in range(len(ecc_bases)):
-                self.data.setpos(j , i, ecc_bases[j])                
+                self.data.setpos(j , i, ecc_bases[j])
+            
+        #print('Column', 1345)    
+        #print(self.data.getcolumn( 1345 ))              
 
     def create_logical_redundancy(self):
         """Adds outer code, index, innercode"""
@@ -472,6 +482,7 @@ class Container:
 
         segments_to_destroy = []
         for i in range(self.data.size[1]):
+        
 
             # Read inner code : message       
             dcol = self.data.getcolumn( i )[self.dnecsi:]
@@ -494,6 +505,11 @@ class Container:
                 decoded_msg, decoded_msgecc, errata_pos = innerCoder.decode( bytes(coded_msg_ba) )
                 n_corrections = len(errata_pos)
             except Exception as e:
+                if i > 1880:
+                    print('Inner code, segment', i)
+                    print(self.data.getcolumn( i ))
+                    print(coded_msg_ba) 
+               
                 self.segments_beyond_repair += 1
                 segments_to_destroy.append(i) # segment cannot be repaired and flagged for deletion
             if n_corrections > 0:
@@ -504,11 +520,10 @@ class Container:
                     if self.data.getpos(self.dnecsi+j, i) != decoded_bases[j] :
                         self.inner_corrections += 1
                         self.data.setpos( self.dnecsi+j, i , decoded_bases[j] )
-                        
+
         # Deleting corrupted segments that could not be repeires (flagged for deletion)
         for i in reversed( sorted(segments_to_destroy)):
             col = self.data.popcolumn(i)
-
 
     def sort_segments(self):
         """Sorts segments by their index. If a segment is not there its columns is empty: it 
@@ -555,11 +570,6 @@ class Container:
         #   2. detect form countdonw
         # Here, they are combined.
         
-        # compute number of blocks and their size
-        dk_approx = self.data.size[1]
-        self.numblocks = dk_approx // (self.n * self.mo // 2 - self.dnecso)
-        if dk_approx % (self.n * self.mo // 2) != 0: 
-            self.numblocks += 1
             
         # find first block end
         #dblocksize_approx = (dk_approximation // self.numblocks ) + self.dnecso 
@@ -570,7 +580,14 @@ class Container:
             if count_down[i] != 0:
                 self.dblocksize = indices[i] + count_down[i] + 1
                 break
-                
+
+        # compute number of blocks and their size
+        dk_approx = self.data.size[1]
+        self.numblocks = int( math.ceil(dk_approx / self.dblocksize) )
+        #dk_approx = self.data.size[1]
+        #self.numblocks = dk_approx // (self.n * self.mo // 2 - self.dnecso)
+        #if dk_approx % (self.n * self.mo // 2) != 0: 
+        #    self.numblocks += 1
 
         #print( self.data.column_index )
          
@@ -588,11 +605,12 @@ class Container:
                 last_index = indices[-i] + count_down[-i]
                 break
 
-        #print('inner_corrections :', self.inner_corrections)        
-        #print('dnecso :', self.dnecso, self.dnecso/self.dmo)
-        #print('dblocksize :', self.dblocksize)
-        #print('numblocks :', self.numblocks)
-        #print('last_index :', last_index)
+        print('inner_corrections :', self.inner_corrections)        
+        print('dnecso :', self.dnecso, self.dnecso/self.dmo)
+        print('dblocksize :', self.dblocksize)
+        print('numblocks :', self.numblocks)
+        print('last_index :', last_index)
+        print('Size', self.data.size) 
                 
         # Find missing segments indices (if any)
         def missing_indices(l):
@@ -698,6 +716,16 @@ class Container:
                     scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
                     for j in range( scope ) :
                         self.data.setpos( i+line_offset, self.dnecso+j + blk*self.dblocksize , decoded_bases[j] ) 
+                        
+        D = self.data.tonumpy()
+        print('Index')        
+        print( [D[self.dnecsi:self.dnecsi+self.dI1,:self.dblocksize]] )
+        print('End of necso') 
+        print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dnecso]] )     
+        print('End of block')                     
+        print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] ) 
+        print('Data')
+        print( [D[self.dnecsi+self.dI:,self.dnecso:]] )
                 
     def check_and_correct_logical_redundancy(self):
         """Processes logical redundency: decode innercode, sort segments and decodes outer code."""
@@ -716,10 +744,11 @@ class Container:
                 
         self.binary_data = b''
         for i in sorted( self.data.column_indexes() ):
-            if i >= (self.necso*self.dmo):
-                col = self.data.getcolumn(i)[line_offset:]
-                for b in col:
-                    self.binary_data += dna.int2bytes(b, n=1)
+            if i >= self.dnecso: #(self.necso*self.dmo):
+                if i < self.data.size[1]:
+                    col = self.data.getcolumn(i)[line_offset:self.data.size[0]]
+                    for b in col:
+                        self.binary_data += dna.int2bytes(b, n=1)
                 
         self.binary_data = bytesutils.merge_four_bytes_in_one(self.binary_data)
               
