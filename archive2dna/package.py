@@ -22,7 +22,7 @@ import zipfile
 from statistics import median, mean
 
 # external
-import numpy as np
+#import numpy as np
 
 # package
 from . import dna
@@ -199,9 +199,10 @@ class Container:
         per_block_symbols = per_block // self.dmo
         if per_block  % self.dmo != 0:
             per_block_symbols += 1
-        #print(per_block_symbols, self.dnecso)
         self.dblocksize = per_block_symbols*dmo + self.dnecso
-        #print('blocksiuze',self.dblocksize)
+        print('dnecso : ', self.dnecso)
+        print('numblocks :', self.numblocks)
+        print('dblocksize :',self.dblocksize)
 
         # set total number of columns
         self.dn = self.dk + self.dnecso
@@ -241,6 +242,7 @@ class Container:
 
         # For each block         
         for blk in range(self.numblocks):
+            print('Outer code - processing block: ', blk)
 
             # Create error outer correcting code symbols line by line    
             for i in range(self.dK-self.dI):
@@ -296,10 +298,14 @@ class Container:
             if blk < self.numblocks-1:
                 blocklen = self.dblocksize
             else:
-                if self.data.size[1] > self.numblocks * self.dblocksize:
-                    blocklen = self.data.size[1] - self.numblocks * self.dblocksize
+                if self.data.size[1] > blk * self.dblocksize:
+                    blocklen = self.data.size[1] - blk * self.dblocksize
                 else:
                     blocklen = self.data.size[1]
+                    
+            print('Index - processing block: ', blk, 'of length', blocklen)
+                    
+            # Count down for end of segment, ends at 0 (in index section I2)
             for i in range(blocklen):
                 #print(i, blocklen - 256)
                 if i < blocklen - 256: # no count down, set to 0
@@ -310,17 +316,19 @@ class Container:
                 for l in range(len(x4)):
                     self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] )
  
-        #print('End of block')                     
-        #D = self.data.tonumpy()
-        #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] )
-        
-        # Count down for end of outer code ecc, ends at 0 (in index block I2)
-        #for i in range(max_range):
-        #    b = dna.int2bytes(i, n=1)
-        #    x4 = bytesutils.split_bytes_in_four(b)
-        #    for l in range(len(x4)):
-        #        self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
-        for blk in range(self.numblocks):
+            #print('End of block')                     
+            #D = self.data.tonumpy()
+            #print( [D[self.dnecsi+self.dI1:self.dnecsi+self.dI,:self.dblocksize]] )
+            
+            # Count down for end of outer code ecc, ends at 0 (in index block I2)
+            #for i in range(max_range):
+            #    b = dna.int2bytes(i, n=1)
+            #    x4 = bytesutils.split_bytes_in_four(b)
+            #    for l in range(len(x4)):
+            #        self.data.setpos( self.dnecsi + l+self.dI1, self.dnecso-i-1 , x4[l] ) 
+            #for blk in range(self.numblocks):
+            
+            # Count down for end of outer code ecc, ends at 0 (in index block I2)
             for i in range(self.dnecso):
                 if i >= self.dnecso - 256: # do count down
                     b = dna.int2bytes(self.dnecso-i-1, n=1)
@@ -747,9 +755,9 @@ class Container:
                 'binary_data'  : { 'size_bytes': str(self.binary_size),
                                    'blocks': str(self.numblocks) },
                 'capacity'     : { 'max_segments_block': str(self.dblocksize),
-                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi//2) / (8*10**6)  ),
+                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi) / (8*10**6)  ),
                                    'max_segments_index': str( (2**(self.I1*self.mi)-1) * self.dmo ),
-                                   'total_capacity_megabytes': str( (2**(self.I1*self.mi)-1) * ((self.K-self.I)*self.mi//2) *self.dmo / (8*10**6)  ),
+                                   'total_capacity_megabytes': str(     ((self.I1*self.mi)-1) * ((self.K-self.I)*self.mi) *self.dmo / (8*10**6)  ),
                                    'information_density': str(self.information_density)},
                 'parameters'   : { 'mo': str(self.mo),
                                    'mi': str(self.mi),
