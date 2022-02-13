@@ -64,7 +64,7 @@ class Container:
         self.I1  = index_positions//mi         # length of the index first section in symbols: segments numbering
         self.dI1 = index_positions//2          # segment numbering in nucleotides
         self.I2  = (index_length - index_positions)//mi  # length of the index second section: countdonws to
-        self.dI2 = (index_length - index_positions)//2   #         end of error correcting codes and end of block
+        self.dI2 = (index_length - index_positions)//2   #    end of error correcting codes and end of block
 
         # Reed Solomon : coodword lengths in bits
         self.mi = mi        # inner code symbol size in bytes 
@@ -181,7 +181,6 @@ class Container:
 
         # use target_redundancy to compute necso (over all)
         dmo = self.mo // 2
-        #dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * self.dk)
         dnk = min([self.dk, self.n*dmo])
         dnecso = int( self.target_redundancy / (1 - self.target_redundancy) * dnk)
         dnecso_e = dnecso // dmo + 1
@@ -218,7 +217,6 @@ class Container:
         # insert columns for outer code error correcting symbols for each block
         for blk in range(self.numblocks):
             self.data.insertcolumns(blk*self.dblocksize, n=self.dnecso)
-
      
     ##################################
     ### Create logical redundancy  ###
@@ -229,7 +227,6 @@ class Container:
            (=  error correcting codes + message). The outer code is applied between segments
            i.e. over each line of the data array.
            """
-
         # Initialize Reed Solomon outer coder
         outerCoder =  RSCodec(self.necso, nsize=self.n) # Using n-k = necs error correcting codes
 
@@ -252,8 +249,15 @@ class Container:
                 
                 # Run Reed Solomon to compute error correctig symblos
                 line2 = outerCoder.encode( line_array_mo )
-                ecc = line2[-self.necso:]
+                if self.mo == 8:
+                    ecc = array.array('i', list(line2))[-self.necso:]
+                else:
+                    ecc = line2[-self.necso:]
                 ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
+                
+                #if blk==0 and i==0:
+                #    print(ecc)
+                #    print(ecc_bases)
                 
                 # Store coded_message (= message + ecc) in data
                 line_offset = self.dnecsi + self.dI            
@@ -291,7 +295,6 @@ class Container:
                     
             # Count down for end of segment, ends at 0 (in index section I2)
             for i in range(blocklen):
-                #print(i, blocklen - 256)
                 if i < blocklen - 256: # no count down, set to 0
                     b = dna.int2bytes(0, n=1)
                 else: # starting count down
@@ -523,8 +526,6 @@ class Container:
         
             
         # find first block end
-        #dblocksize_approx = (dk_approximation // self.numblocks ) + self.dnecso 
-        #start_at = int( math.ceil( (self.dnecso + dblocksize_approx)/2 ) )
         start_at = self.dnecso + 1
         for i in range(start_at, len(count_down)):
             if count_down[i] != 0:
@@ -559,43 +560,6 @@ class Container:
   
         # Sort data array according to index
         self.data.reindex_columns()                        
-
-    def decode_outer_code_1block(self):
-        """Decodes Reed Solomon outer code: restore and correct segments"""
-        outerCoder =  RSCodec(self.necso, nsize=self.n) 
-        line_offset = self.dnecsi + self.dI
-        for i in range(self.data.size[0]-line_offset):
-            
-            dline = self.data.getline( i+line_offset )
-            ecc = dline[:(self.necso*self.dmo)]
-            msg = dline[(self.necso*self.dmo):]
-
-            msga = array.array('i', list(msg))  
-            ecca = array.array('i', list(ecc)) 
-                
-            msgm = dna.merge_bases(msga, block_size=self.dmo) 
-            eccm = dna.merge_bases(ecca, block_size=self.dmo)
-
-            try:
-                n_corrections = 0
-                decoded_block, decoded_msgecc, errata_pos = outerCoder.decode(msgm+eccm)
-                n_corrections = len(errata_pos)
-            except Exception as e:
-
-                self.error = True
-                self.error_message += 'Decode outer code error on line ' +\
-                                       str(i) +\
-                                       '. Error: ' +\
-                                       str(e) + '\n'
-                                    
-            if n_corrections > 0:
-                self.outer_corrections += n_corrections
-                decoded_bases = dna.split_bases(decoded_block, block_size=self.dmo)
-                #TODO : should not be restricted to scope but full range of decodec bases
-                line = self.data.getline(i+line_offset)
-                scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
-                for j in range( scope ) :
-                    self.data.setpos( i+line_offset, self.dnecso+j , decoded_bases[j] ) 
         
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
@@ -605,9 +569,15 @@ class Container:
         for blk in range(self.numblocks):
         
             for i in range(self.data.size[0]-line_offset):
-                
+            
                 block_start = blk*self.dblocksize
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
+                
+                #dline = bytearray()
+                #for i in sorted( self.data.column_indexes() )[block_start:block_stop]:
+                #    col = self.data.getcolumn(i)[line_offset:self.data.size[0]]
+                #    for b in col:
+                #        dline.append(b)                
                 dline = self.data.getline( i+line_offset, s=slice(block_start, block_stop) )
                 
                 ecc = dline[:(self.necso*self.dmo)]
@@ -624,10 +594,10 @@ class Container:
                     decoded_block, decoded_msgecc, errata_pos = outerCoder.decode(msgm+eccm)
                     n_corrections = len(errata_pos)
                 except Exception as e:
-
                     self.error = True
                     self.error_message += 'Decode outer code error on line ' +\
                                            str(i) +\
+                                           '. Block:' + str(blk) +\
                                            '. Error: ' +\
                                            str(e) + '\n'
                                         
@@ -649,32 +619,6 @@ class Container:
     ############################
     ### Data output : binary ###
     ############################
-        
-    def write_binary_old(self):
-        """Writes 2D DNA data array to binary data."""
-
-        line_offset = self.dnecsi+self.dI
-                
-        self.binary_data = b''
-        for i in sorted( self.data.column_indexes() ):
-            if i >= self.dnecso: #(self.necso*self.dmo):
-                if i < self.data.size[1]:
-                    col = self.data.getcolumn(i)[line_offset:self.data.size[0]]
-                    for b in col:
-                        self.binary_data += dna.int2bytes(b, n=1)
-                
-        self.binary_data = bytesutils.merge_four_bytes_in_one(self.binary_data)
-              
-        self.binary_data = self.mask_bytes(self.binary_data)
-
-        if self.auto_zip:
-            zip_buffer2 = io.BytesIO( self.binary_data )
-            with zipfile.ZipFile(zip_buffer2, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-                self.binary_data = zip_file.read('information_package')
-            del( zip_buffer2 )
-       
-        self.binary_size = len(self.binary_data)
-        return self.binary_data 
 
     def write_binary(self):
         """Writes 2D DNA data array to binary data."""
