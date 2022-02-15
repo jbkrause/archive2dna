@@ -613,7 +613,7 @@ class Container:
                     decoded_bases = dna.split_bases(decoded_block, block_size=self.dmo)
                     #TODO : should not be restricted to scope but full range of decodec bases
                     line = self.data.getline(i+line_offset)
-                    scope = min( [ len(decoded_bases), len( line[self.dnecso:] ) ] ) 
+                    scope = min( [ len(decoded_bases), len( line[self.dnecso+blk*self.dblocksize:] ) ] )
                     for j in range( scope ) :
                         self.data.setpos( i+line_offset, self.dnecso+j + blk*self.dblocksize , decoded_bases[j] ) 
                 
