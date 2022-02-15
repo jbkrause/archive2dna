@@ -245,14 +245,17 @@ class Container:
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 line_array = array.array('i', list(dline))
-                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)
-                
+                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)        
+            
                 # Run Reed Solomon to compute error correctig symblos
-                line2 = outerCoder.encode( line_array_mo )
                 if self.mo == 8:
-                    ecc = array.array('i', list(line2))[-self.necso:]
+                    line_array_mo = bytearray( list(line_array_mo) )
+                    line2 = outerCoder.encode( line_array_mo )
+                    ecc = array.array('i', list(line2[-self.necso:]))
                 else:
+                    line2 = outerCoder.encode( line_array_mo )
                     ecc = line2[-self.necso:]
+                    
                 ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
                 
                 #if blk==0 and i==0:
@@ -588,6 +591,10 @@ class Container:
                     
                 msgm = dna.merge_bases(msga, block_size=self.dmo) 
                 eccm = dna.merge_bases(ecca, block_size=self.dmo)
+                
+                if self.mo <= 8:
+                    msgm = bytearray(list(msgm))
+                    eccm = bytearray(list(eccm))
 
                 try:
                     n_corrections = 0
