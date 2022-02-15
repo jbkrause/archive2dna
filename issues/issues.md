@@ -2,17 +2,14 @@
 
 ## Todo
 
-* Add outer code block management
-* Optimize memory usage.
+* Acceleration using C complied lib
+* More efficient support of line and columns reshaping when appliying Reed Solomon corrections while decoding
 * Add directed brute force approach for inner code to compensate for
-  frameshift mutations.
+  frameshift mutations?
 * Adapt index genration to mi parameter.
-* Better support of line and columns reshaping when appliying Reed Solomon corrections while decoding
+* Optimize memory usage.
 
 ## Issues
 
-* When last or lasts DNA segments are lost, outer code restauration
-  generates a padding of 0 for the last segment. It is removed by the
-  internal unzipping at end of decoding process (so it is not a
-  problem but unelegant)
+* At decoding, make necso and block detection more robust by using the ovearall countdonw data
 
