@@ -203,7 +203,6 @@ class PackageModudle(TestCase):
         self.assertTrue( h1==h2  )
 
 
-
     def test_segments_permutations(self): 
         """Test segments permutations"""     
         # from bytes to DNA
