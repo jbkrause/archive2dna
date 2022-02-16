@@ -666,8 +666,12 @@ class Container:
         # redundancy
         self.inner_redundancy = (self.N-self.K)/self.N
         self.outer_redundancy = self.dnecso/self.segments_count
-        self.information_density = 2 * (self.K/self.N) * (self.n-self.necso/self.n)
-
+        self.information_density = 2 * (self.K/self.N) * ((self.n-self.necso)/self.n)
+        max_segments_index = 2**self.index_positions-1
+        max_segments_block = self.n*self.dmo
+        total_capacity = (max_segments_index) * ((self.K-self.I)*self.dmi)
+        block_capacity = (max_segments_block) * ((self.K-self.I)*self.dmi)
+        
         return {'redundancy'   : { 'inner': str(self.inner_redundancy),
                                    'outer': str(self.outer_redundancy) },
                 'dna_segments' : { 'size_median': str(self.segments_median_size),
@@ -675,10 +679,10 @@ class Container:
                                    'count': str(self.segments_count) },
                 'binary_data'  : { 'size_bytes': str(self.binary_size),
                                    'blocks': str(self.numblocks) },
-                'capacity'     : { 'max_segments_block': str(self.dblocksize),
-                                   'block_capacity_megabytes': str( self.n * self.dmo * ((self.K-self.I)*self.mi) / (8*10**6)  ),
-                                   'max_segments_index': str( (2**(self.I1*self.mi)-1) * self.dmo ),
-                                   'total_capacity_megabytes': str(     ((self.I1*self.mi)-1) * ((self.K-self.I)*self.mi) *self.dmo / (8*10**6)  ),
+                'capacity'     : { 'max_segments_block': str( max_segments_block ),
+                                   'block_capacity_megabytes': str( block_capacity / (8*10**6)  ),
+                                   'max_segments_index': str( max_segments_index ),
+                                   'total_capacity_megabytes': str( total_capacity / (8*10**6)  ),
                                    'information_density': str(self.information_density)},
                 'parameters'   : { 'mo': str(self.mo),
                                    'mi': str(self.mi),
@@ -698,7 +702,7 @@ class Container:
                 'errors'       : { 'error': str(self.error) ,
                                    'message': str(self.error_message)},
                 'id'           : { 'package_id': str(self.package_id),
-                                   'package_primer' : str(self.primer) } }   
+                                   'package_primer' : str(self.primer) } } 
         
         
                 
