@@ -51,13 +51,13 @@ Encode an information package (here aip_olos.zip) into DNA
 identification of DNA representation.
 
 ```
-python cli.py encode tests/data/aip_olos.zip  dna.txt "olos:123"
+python cli.py encode tests/data/aip_olos.zip  dna.txt --id "olos:123"
 ```
 
 Decode back (identifier may be unknown):
 
 ```
-python cli.py decode dna.txt aip_decoded.zip "unknown"
+python cli.py decode dna.txt aip_decoded.zip --id "unknown"
 ```
 
 ## Application programming interface (API)
