@@ -12,6 +12,10 @@ class Representation:
     def __init__(self,
                 data_bytes = None,
                 data_dna = None,
+                numblocks = 1,
+                dblocksize = 10,
+                dnecso = 3,
+                dN = 10,
                 n_lines   = 5,
                 n_columns = 20 ):
         
@@ -44,6 +48,10 @@ class Representation:
                                    'column':array.array('b', 
                                        list( data_bytes[ i_from : i_to  ] ) )} )
             self.index_columns_num_currens()
+            delta_lines   = dN - n_lines
+            self.insertlines(0,n=delta_lines)
+            for blk in range(numblocks):
+                self.insertcolumns(blk*dblocksize, n=dnecso)
                 
         # loading from dna
         if data_dna is not None:

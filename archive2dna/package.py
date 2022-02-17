@@ -24,10 +24,12 @@ from statistics import median, mean
 # package
 from . import dna
 from . import bytesutils
-from . import representation
+
+#from . import representation
+from . import representation_sql as representation
 
 #from reedsolo import RSCodec
-from . import reedsolo
+from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
 
 class Container:
@@ -204,16 +206,19 @@ class Container:
         n_lines   = self.dK-self.dI
         n_columns = self.dk
         self.data = representation.Representation( data_bytes=binary_data,
+                                                   dN = self.dN,
+                                                   numblocks = self.numblocks,
+                                                   dblocksize = self.dblocksize,
+                                                   dnecso = self.dnecso,
                                                    n_lines = n_lines,
                                                    n_columns = n_columns )
 
         # shift extend data to final structure of dn x dk blocks   
         # insert lines for inner code error correcting caracters and index
-        delta_lines   = self.dN - n_lines
-        self.data.insertlines(0,n=delta_lines)
+        #delta_lines   = self.dN - n_lines -> done in init at loading
         # insert columns for outer code error correcting symbols for each block
-        for blk in range(self.numblocks):
-            self.data.insertcolumns(blk*self.dblocksize, n=self.dnecso)
+        #for blk in range(self.numblocks):
+        #    self.data.insertcolumns(blk*self.dblocksize, n=self.dnecso)
      
     ##################################
     ### Create logical redundancy  ###
