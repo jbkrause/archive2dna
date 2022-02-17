@@ -63,7 +63,7 @@ class Representation:
                 for i in range(dnecso):
                     idx += 1
                     args = {'index':idx}
-                    for ix, x in enumerate( [None for i in range(dN)] ):
+                    for ix, x in enumerate( [0 for i in range(dN)] ):
                         args[ 'c'+str(ix) ] = x
                     stmt = insert(self.table).values(**args)
                     with self.engine.connect() as connection:
@@ -79,11 +79,13 @@ class Representation:
                         for j in range(delta): # padding with zeros
                             self.data[-1]['column'].append(0)
                     args = {'index':idx}
-                    for ix, x in enumerate( [None for i in range(delta_lines)] + list( data_bytes[ i_from : i_to  ] ) ):
+                    for ix, x in enumerate( [0 for i in range(delta_lines)] + list( data_bytes[ i_from : i_to  ] )  ):
                         args[ 'c'+str(ix) ] = x
                     stmt = insert(self.table).values(**args)
                     with self.engine.connect() as connection:
                         connection.execute(stmt)
+                        
+
 #                for i in range(n_columns):
 #                    idx += 1
 #                    i_from = i*n_lines
@@ -135,26 +137,28 @@ class Representation:
     def column_indexes(self):
         """Returns keys of column indexes, i.e. the actual column number that is
         used to acccess columns (not their internal position in representation)."""
-        return self.column_index.keys()
+        stmt = select([
+            self.table.columns[ 'index' ] ]
+            ).order_by( self.table.columns.index )
+        with self.engine.connect() as connection:
+            results = connection.execute(stmt).fetchall()
+        return [x[0] for x in results]
                     
     def getcolumn(self, n, s=None):
         """Retruns whole column of index n.
         An optional slice s may be specified to restrict returned range."""
-        #if s==None:
-        #    return self.data[ self.column_index[n]]['column']
-        #else:
-        #    return self.data[ self.column_index[n]]['column'][s]
-        stmt = select([
-            self.table.columns ]
+        #fields = ['c'+str(i) for i in range(self.dN)]
+        stmt = select(
+            self.table.columns
             ).where(and_(
-                table.columns.index == n   
+                self.table.columns.index == n   
             ))
-        with engine.connect() as connection:
+        with self.engine.connect() as connection:
             results = connection.execute(stmt).fetchall()
         if s == None:
-            return results[1:]
+            return results[0][2:]
         else:
-            return results[1:][s]
+            return results[0][2:][s]
         # FIXME: return array 'b' instead?
         
     def getpos(self, line, column):
@@ -167,7 +171,7 @@ class Representation:
             ))             
         with self.engine.connect() as connection:
             res = connection.execute(stmt).fetchall()
-        return [x[0] for x in res]
+        return [x[0] for x in res][0]
         #return self.data[ self.column_index[column]]['column'][line]   
 
     def getline(self, n, s=None):
@@ -186,7 +190,8 @@ class Representation:
                 )).order_by( self.table.columns.index )            
         with self.engine.connect() as connection:
             line = connection.execute(stmt).fetchall()
-        return [x[0] for x in line][0]
+            #print(line)
+        return [x[0] for x in line]
             
     def setpos(self, line, column, value):
         """Sets value at specific position in representation at specified line and column."""
@@ -218,28 +223,43 @@ class Representation:
         """Add a column at specified index. 
            - does NOT: check if columns already exist
            - does NOT: shift index of exisiting columns"""
-        self.data.append({'index':index,
-                          'column':array.array('b', [0]*self.size[0])})
+        args = {'index':index}
+        for ix, x in enumerate( [0 for i in range(dN)] ):
+            args[ 'c'+str(ix) ] = x
+        stmt = insert(self.table).values(**args)
+        with self.engine.connect() as connection:
+            connection.execute(stmt)     
+        #self.data.append({'index':index,
+        #                  'column':array.array('b', [0]*self.size[0])})
         self.size[1] += 1
-        self.reindex_columns()
+        #self.reindex_columns()
         
     def popcolumn(self, index):
         """Removes column at index"""
-        col = self.data.pop( self.column_index[index] )
+        stmt = delete(self.table 
+                ).where(and_(
+                    self.table.columns.index == index
+                ))         
+        with self.engine.connect() as connection:
+            connection.execute(stmt)
+        #col = self.data.pop( self.column_index[index] )
         self.size[1] -= 1
-        self.reindex_columns()
-        return col
+        #self.reindex_columns()
+        return None
      
-    #def tonumpy(self):
-    #    """
-    #    Converts representation to numpy nd array.
-    #    For debug purposes only. DO NOT USE IN LIBRARY."""
-    #    import numpy as np
-    #    out = np.array( np.full( self.size, None, dtype=object ) )
-    #    for i in sorted( self.column_indexes() ):
-    #        col = self.getcolumn(i)
-    #        for j in range(len(col)):
-    #            out[j,i] = col[j]
-    #    return out
+    def tonumpy(self):
+        """
+        Converts representation to numpy nd array.
+        For debug purposes only. DO NOT USE IN LIBRARY."""
+        import numpy as np
+        stmt = select(self.table.columns).order_by(self.table.columns.index)
+        with self.engine.connect() as connection:
+            cols = connection.execute(stmt).fetchall()   
+        out = np.array( np.full( [self.size[0], len(cols)], None, dtype=object ) ) # FIXME sietz[0] ?
+        for icol, col in enumerate(cols):
+            col2 = col[2:]#remove id and index
+            for j in range(len(col2)): #range(len(col2)) range(self.size[0]) # FIXME sietz[0] ?
+                out[j,icol] = col2[j]            
+        return out
         
             

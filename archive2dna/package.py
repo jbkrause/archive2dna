@@ -25,12 +25,15 @@ from statistics import median, mean
 from . import dna
 from . import bytesutils
 
-#from . import representation
-from . import representation_sql as representation
-
 #from reedsolo import RSCodec
 from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
+
+use_sql = False          
+if not use_sql :
+    from . import representation
+else:
+    from . import representation_sql as representation
 
 class Container:
 
@@ -245,6 +248,7 @@ class Container:
                 # Read line in DNA representation
                 block_start = blk*self.dblocksize
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
+                #print(i, block_start, block_stop)
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 line_array = array.array('i', list(dline))
                 line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)        
@@ -332,7 +336,11 @@ class Container:
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
         
         for i in range(self.dn):
+            #print('Process column inner code',i)
             dcol = self.data.getcolumn( i )[self.dnecsi:]
+            dcol = [x for x in dcol if x != None] # FIXME: ugly fix, solve at source?
+            #dcol = [x if x else 0 != None for x in dcol]
+            #print(dcol)
             darray = array.array('i', list(dcol))
             
             # merging bases    
@@ -351,8 +359,12 @@ class Container:
 
     def create_logical_redundancy(self):
         """Adds outer code, index, innercode"""
-        self.add_outer_code()
-        self.add_index()
+        #print('Loaded')
+        #D = self.data.tonumpy()
+        #print(D)
+        
+        self.add_outer_code() 
+        self.add_index()   
         self.add_inner_code()
 
     ######################
@@ -364,6 +376,8 @@ class Container:
         self.dna = []
         for i in sorted(self.data.column_indexes()):
            col = self.data.getcolumn(i)
+           col = [x for x in col if x != None]
+           #col = [x if x else 0 != None for x in col]
            DNA_segment = ''
            for j in range(len(col)):
                 DNA_segment += dna.bits2dna( col[j] )
@@ -564,7 +578,8 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        self.data.reindex_columns()                        
+        if not self.use_sql :
+            self.data.reindex_columns()                        
         
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
