@@ -29,7 +29,7 @@ from . import bytesutils
 from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
 
-use_sql = False          
+use_sql = False    
 if not use_sql :
     from . import representation
 else:
@@ -248,8 +248,11 @@ class Container:
                 # Read line in DNA representation
                 block_start = blk*self.dblocksize
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
-                #print(i, block_start, block_stop)
+                #print(i, block_start, block_stop, self.data.size)
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
+                dline = [x for x in dline if x != None]
+                #print(dline)
+                #raise
                 line_array = array.array('i', list(dline))
                 line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)        
             
@@ -359,11 +362,17 @@ class Container:
 
     def create_logical_redundancy(self):
         """Adds outer code, index, innercode"""
-        #print('Loaded')
+
         #D = self.data.tonumpy()
-        #print(D)
+        #print(D[self.dnecso:, self.dnecsi+self.dI:])
         
         self.add_outer_code() 
+        
+        D = self.data.tonumpy()
+        print(D.shape)
+        print(D)
+        #print(D[:, self.dnecsi:])
+        
         self.add_index()   
         self.add_inner_code()
 
@@ -578,7 +587,7 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        if not self.use_sql :
+        if not use_sql :
             self.data.reindex_columns()                        
         
     def decode_outer_code(self):

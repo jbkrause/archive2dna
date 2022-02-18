@@ -67,7 +67,8 @@ class Representation:
                         args[ 'c'+str(ix) ] = x
                     stmt = insert(self.table).values(**args)
                     with self.engine.connect() as connection:
-                        connection.execute(stmt)                    
+                        connection.execute(stmt)
+                    self.size[1] += 1
                 for i in range(dblocksize - dnecso):
                     idx += 1
                     i_from = i*n_lines + (dblocksize-dnecso)*blk
