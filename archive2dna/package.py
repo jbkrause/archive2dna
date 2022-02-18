@@ -29,7 +29,7 @@ from . import bytesutils
 from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
 
-use_sql = False    
+use_sql = True
 if not use_sql :
     from . import representation
 else:
@@ -447,9 +447,17 @@ class Container:
         """Reformats DNA segments strings into array"""
         
         self.data = representation.Representation( data_dna=self.dna,
+                                                   dN = self.dN,
                                                    n_lines = self.segments_median_size,
                                                    n_columns = len(self.dna) )   
-                   
+        #self.data = representation.Representation( data_bytes=binary_data,
+        #                                           dN = self.dN,
+        #                                           numblocks = self.numblocks,
+        #                                           dblocksize = self.dblocksize,
+        #                                           dnecso = self.dnecso,
+        #                                           n_lines = n_lines,
+        #                                         n_columns = n_columns )  
+        
     def load_dna(self, text):
         """Reads DNA text, remove primers around each segment, compute segments size-statistics, converts to 2D data array."""
         self.read_dna(text)
@@ -472,6 +480,7 @@ class Container:
   
             # Read inner code : message       
             dcol = self.data.getcolumn( i )[self.dnecsi:]
+            dcol = [x for x in dcol if x != None] # FIXME: ugly fix, solve at source?
             darray = array.array('i', list(dcol))
             darray_mi = dna.merge_bases(darray, block_size=self.dmi)
             
@@ -524,16 +533,22 @@ class Container:
             return(idx)
 
         # Get position of each segment
+        #print(self.data.dump())
+        #raise
+        
         indices = []
         count_down = []
-        for i in range( len(self.data.data) ):
-            masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
+        
+        for i in range( self.data.size[1] ): # len(self.data.data)
+            #masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
+            masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
             index_col = []
             for j in range(len(masked_index)):
                 index_col.append( ( masked_index[j] ^ self.rand_ints[j%len(self.rand_ints)] ) % 4 )          
             indices.append( get_index( index_col[:self.dI1] ) )
             count_down.append( get_index( index_col[self.dI1:] ) )
-            self.data.data[i]['index'] = indices[i]
+            self.data.updateindex(i, indices[i])
+            #self.data.data[i]['index'] = indices[i]
 
         # Get necso (using first countdown in I2)
         # TODO: make more robust, i.e. combine countdown for from all blocks
@@ -587,8 +602,7 @@ class Container:
             self.data.addcolumn(x)
   
         # Sort data array according to index
-        if not use_sql :
-            self.data.reindex_columns()                        
+        self.data.reindex_columns()                        
         
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
@@ -608,6 +622,7 @@ class Container:
                 #    for b in col:
                 #        dline.append(b)                
                 dline = self.data.getline( i+line_offset, s=slice(block_start, block_stop) )
+                dline = [x for x in dline if x != None]
                 
                 ecc = dline[:(self.necso*self.dmo)]
                 msg = dline[(self.necso*self.dmo):]
@@ -667,6 +682,7 @@ class Container:
         
             for i in sorted( self.data.column_indexes() )[block_start:block_stop]:
                 col = self.data.getcolumn(i)[line_offset:self.data.size[0]]
+                col = [x for x in col if x != None]
                 for b in col:
                     self.binary_data += dna.int2bytes(b, n=1)
                 

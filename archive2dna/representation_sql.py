@@ -37,13 +37,15 @@ class Representation:
         self.size[0] += delta_lines
 
         args = ['representation', self.meta, Column('id', Integer, primary_key = True),  Column('index', Integer)]
-        for i in range(delta_lines + n_lines):
+        for i in range(dN): #range(delta_lines + n_lines):
             args.append( Column('c'+str(i), SmallInteger) )    
         representation = Table( *args )
 
         self.engine = create_engine('sqlite://', echo=False)
         self.meta.create_all(self.engine)
         self.table = self.meta.tables['representation']
+        
+        #print(self.table.columns)
      
         # loading from bytes
         if data_bytes is not None:
@@ -85,55 +87,61 @@ class Representation:
                     stmt = insert(self.table).values(**args)
                     with self.engine.connect() as connection:
                         connection.execute(stmt)
-                        
-
-#                for i in range(n_columns):
-#                    idx += 1
-#                    i_from = i*n_lines
-#                    i_to = (i+1)*n_lines    
-#                    # if column will not be fully filled
-#                    if i_to > len(data_bytes):
-#                        i_to = len(data_bytes)
-#                        delta = i_to - len(data_bytes)
-#                        for j in range(delta): # padding with zeros
-#                            self.data[-1]['column'].append(0)
-#                    args = {'index':i}
-#                    for ix, x in enumerate( [None for i in range(delta_lines)] + list( data_bytes[ i_from : i_to  ] ) ):
-#                        args[ 'c'+str(ix) ] = x
-#                    stmt = insert(self.table).values(**args)
-#                    with self.engine.connect() as connection:
-#                        connection.execute(stmt)                
+           
         # loading from dna
         if data_dna is not None:
             # Data is organized by columns at initialization
             # each column corresponds to a DNA segment
             # - if a column of median size, it is padded using zeros
             # - if a column is longer thant median size it is imported as is
-            self.data = []
+            
+            idx = -1
             for i in range(n_columns):
-                self.data.append( {'index':i, 'column':array.array('b') } )
-                for j in range(len(data_dna[i])):
-                    self.data[-1]['column'].append( dna.dna2bits( data_dna[i][j] ) )
+                idx += 1 
+                args = {'index':idx}
+                for ix, x in enumerate( [dna.dna2bits( data_dna[i][j] ) for j in range(len(data_dna[i]))] ):
+                    args[ 'c'+str(ix) ] = x
+                    
                 if len(data_dna[i]) < n_lines: # padding with zeroes
                     if i != n_columns-1: # not for last segement that is shorter
                         delta = n_lines - len(data_dna[i])
                         for j in range(delta):
-                            self.data[-1]['column'].append(0)
-            self.index_columns_num_currens()
+                            args[ 'c'+str(j+len(data_dna[i])) ] = 0           
+                stmt = insert(self.table).values(**args)
+                #print(args)
+                with self.engine.connect() as connection:
+                    connection.execute(stmt)                
             
-    def index_columns_num_currens(self):
-        """Indexes columns starting at 0 with increments of 1."""
-        # This method is used for initial indexing
-        self.column_index = defaultdict(int)
-        for i in range( len(self.data) ):
-            self.column_index[ self.data[i]['index'] ] = i
-        self.column_index = dict(self.column_index)
+            #self.data = []
+            #for i in range(n_columns):
+            #    self.data.append( {'index':i, 'column':array.array('b') } )
+            #    for j in range(len(data_dna[i])):
+            #        self.data[-1]['column'].append( dna.dna2bits( data_dna[i][j] ) )
+            #    if len(data_dna[i]) < n_lines: # padding with zeroes
+            #        if i != n_columns-1: # not for last segement that is shorter
+            #            delta = n_lines - len(data_dna[i])
+            #            for j in range(delta):
+            #                self.data[-1]['column'].append(0)
+            #self.index_columns_num_currens()
+            
+    #def index_columns_num_currens(self):
+    #    """Indexes columns starting at 0 with increments of 1."""
+    #    # This method is used for initial indexing
+    #    self.column_index = defaultdict(int)
+    #    for i in range( len(self.data) ):
+    #        self.column_index[ self.data[i]['index'] ] = i
+    #    self.column_index = dict(self.column_index)
         
     #def reindex_columns(self):
     #    """Re-indexes columns, e.g. after loading DNA or inserting/removing a column."""
     #    self.column_index = {}
     #    for i in range( len(self.data) ):
     #        self.column_index[ self.data[i]['index'] ] = i
+    
+    def reindex_columns(self):
+        """Re-indexes columns, e.g. after loading DNA or inserting/removing a column. 
+        Not necessary for the sql implementation."""
+        pass
             
     def column_indexes(self):
         """Returns keys of column indexes, i.e. the actual column number that is
@@ -144,6 +152,14 @@ class Representation:
         with self.engine.connect() as connection:
             results = connection.execute(stmt).fetchall()
         return [x[0] for x in results]
+        
+    def updateindex(self, i, index):
+        stmt = update(self.table, values = { 'index' : index } 
+                ).where(and_(
+                    self.table.columns.id == i+1 # table ids start at 1 not 0
+                ))         
+        with self.engine.connect() as connection:
+            connection.execute(stmt)
                     
     def getcolumn(self, n, s=None):
         """Retruns whole column of index n.
@@ -263,4 +279,17 @@ class Representation:
                 out[j,icol] = col2[j]            
         return out
         
-            
+    def dump(self):
+        """
+        Converts representation to numpy nd array.
+        For debug purposes only. DO NOT USE IN LIBRARY."""
+        import numpy as np
+        stmt = select(self.table.columns).order_by(self.table.columns.index)
+        with self.engine.connect() as connection:
+            cols = connection.execute(stmt).fetchall()   
+        out = np.array( np.full( [self.size[0], len(cols)], None, dtype=object ) ) # FIXME sietz[0] ?
+        for icol, col in enumerate(cols):
+            col2 = col #remove id and index
+            for j in range(self.size[0]): #range(len(col2)) range(self.size[0]) # FIXME sietz[0] ?
+                out[j,icol] = col2[j]            
+        return out            

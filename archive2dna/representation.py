@@ -85,6 +85,9 @@ class Representation:
         for i in range( len(self.data) ):
             self.column_index[ self.data[i]['index'] ] = i
             
+    def updateindex(self, i, index):
+        self.data[i]['index'] = index
+            
     def column_indexes(self):
         """Returns keys of column indexes, i.e. the actual column number that is
         used to acccess columns (not their internal position in representation)."""
