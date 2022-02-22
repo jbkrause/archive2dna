@@ -54,6 +54,8 @@ else:
     auto_zip = True
 representation_type = cfg[cfg_set]['representation_type']
 representation_url = cfg[cfg_set]['representation_url']
+logging_file = cfg[cfg_set]['logging_file']
+logging_level = cfg[cfg_set]['logging_level']
 
 if args.package_id == None:
     primer_length = 0
@@ -73,6 +75,8 @@ if args.action=='encode':
                            target_redundancy = target_redundancy,
                            representation_type = representation_type,
                            representation_url = representation_url,
+                           logging_file = logging_file,
+                           logging_level = logging_level,
                            auto_zip = auto_zip )
     c.load_binary(binary_data) 
     c.create_logical_redundancy()
@@ -96,6 +100,8 @@ elif args.action=='decode':
                            target_redundancy = target_redundancy,
                            representation_type = representation_type,
                            representation_url = representation_url,
+                           logging_file = logging_file,
+                           logging_level = logging_level,
                            auto_zip = auto_zip)
     text = open(dna, 'r').read()
     c.load_dna(text)

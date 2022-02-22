@@ -19,6 +19,7 @@ import math
 import array
 import io
 import zipfile
+import logging
 from statistics import median, mean
 
 # package
@@ -43,6 +44,8 @@ class Container:
                       target_redundancy = 0.4,           # sets outer redundancy to about 0.4 i.e. 40%
                       representation_type = 'python',    # in memory representation: python objects or SQL cache
                       representation_url  = 'sqlite://', # SQL representation config (sqlalchemy URL)
+                      logging_file = 'None',
+                      logging_level = 'INFO',
                       auto_zip = True):     # turns auto zipping/untipping on or off
 
         # Auto zip
@@ -54,6 +57,26 @@ class Container:
         # Representation type
         # Either python objects or cache in a SQL database
         self.representation_type = representation_type
+        
+        # Logging 
+        if logging_level == 'DEBUG':
+            log_level = logging.DEBUG
+        elif logging_level == 'WARNING':
+            log_level = logging.WARNING
+        elif logging_level == 'ERROR':
+            log_level = logging.ERROR
+        elif logging_level == 'CRITICAL':
+            log_level = logging.CRITICAL
+        else:
+            log_level = logging.INFO
+        if logging_file == 'None':
+            logging.basicConfig(  format = '%(asctime)s - %(levelname)s - %(message)s',                           
+                                  level = log_level)
+        else:
+            logging.basicConfig( filename = logging_file,
+                                 format = '%(asctime)s - %(levelname)s - %(message)s',                          
+                                 level = log_level)
+
         
         # Primer : package identification in bytes
         self.primer_length = primer_length # 5 bytes -> 20 nucleotides
@@ -164,6 +187,7 @@ class Container:
         """Reads a binary file, applies random mask, reshapes to table.
            Binary data is stored by columns: first column 1 is filled,
            then column 2, and so on."""
+        logging.info('start : load binary')
         self.binary_size = len(binary_data)
         # zip data
         if self.auto_zip:
@@ -236,6 +260,9 @@ class Container:
            (=  error correcting codes + message). The outer code is applied between segments
            i.e. over each line of the data array.
            """
+           
+        logging.info('start : add outer code')
+        
         # Initialize Reed Solomon outer coder
         outerCoder =  RSCodec(self.necso, nsize=self.n) # Using n-k = necs error correcting codes
 
@@ -290,6 +317,8 @@ class Container:
         """
         # TODO: hardocoded for mi=8, to be generalized
         
+        logging.info('start : add index')
+        
         # Numerus currens of segments, starts at 0 (in index block I1)
         for i in range(self.data.size[1]):
             b = dna.int2bytes(i, n=self.index_positions//8)
@@ -339,6 +368,9 @@ class Container:
     def add_inner_code(self):
         """ Adds inner code, i.e. the correcting code of each DNA segment. 
             Segments correspond to data columns."""
+            
+        logging.info('start : add iner code')
+            
         # Initialize inner coder
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
         
@@ -365,18 +397,8 @@ class Container:
                 self.data.setpos(j , i, ecc_bases[j])          
 
     def create_logical_redundancy(self):
-        """Adds outer code, index, innercode"""
-
-        #D = self.data.tonumpy()
-        #print(D[self.dnecso:, self.dnecsi+self.dI:])
-        
+        """Adds outer code, index, innercode"""       
         self.add_outer_code() 
-        
-        #D = self.data.tonumpy()
-        #print(D.shape)
-        #print(D)
-        #print(D[:, self.dnecsi:])
-        
         self.add_index()   
         self.add_inner_code()
 
@@ -385,7 +407,10 @@ class Container:
     ######################
 
     def to_dna(self):
-        """Converts data into DNA segments"""
+        """Converts representation into DNA segments"""
+        
+        logging.info('start : convert representation to DNA segement')
+                
         self.dna = []
         for i in sorted(self.data.column_indexes()):
            col = self.data.getcolumn(i)
@@ -397,7 +422,10 @@ class Container:
            self.dna.append(DNA_segment)
 
     def add_primers(self):
-        """Adds primer and its complements around each DNA segment."""       
+        """Adds primer and its complements around each DNA segment.""" 
+
+        logging.info('start : add primers')
+        
         if self.primer is not None:
             comp_primer = dna.complement_primer(self.primer)
             self.dna = [ dna.add_primers( x, 
@@ -406,6 +434,9 @@ class Container:
                               
     def remove_primers(self):
         """Removes primer and its complements around each DNA segment."""  
+        
+        logging.info('start : remove primers')
+       
         if self.primer is not None:
             comp_primer = dna.complement_primer(self.primer)
             self.dna = [ dna.remove_primers( x, 
@@ -423,6 +454,9 @@ class Container:
                                   
     def write_dna(self):
         """Returns a DNA string, with one line per DNA segment (e.g. to be written in a text file)."""
+        
+        logging.info('start : write DNA')
+        
         return '\n'.join(self.dna)
 
     ########################
@@ -450,6 +484,8 @@ class Container:
     def dna_to_array(self):
         """Reformats DNA segments strings into array"""
         
+        logging.info('start : initialize representation')
+        
         if self.representation_type == 'sql' :
             from . import representation_sql as representation            
         else:
@@ -459,13 +495,6 @@ class Container:
                                                    dN = self.dN,
                                                    n_lines = self.segments_median_size,
                                                    n_columns = len(self.dna) )   
-        #self.data = representation.Representation( data_bytes=binary_data,
-        #                                           dN = self.dN,
-        #                                           numblocks = self.numblocks,
-        #                                           dblocksize = self.dblocksize,
-        #                                           dnecso = self.dnecso,
-        #                                           n_lines = n_lines,
-        #                                         n_columns = n_columns )  
         
     def load_dna(self, text):
         """Reads DNA text, remove primers around each segment, compute segments size-statistics, converts to 2D data array."""
@@ -481,6 +510,8 @@ class Container:
     def decode_inner_code(self):
         """Decode inner code"""
 
+        logging.info('start : decode inner code')
+        
         # Load Reed Solomon codec
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
 
@@ -530,6 +561,8 @@ class Container:
         will be used later to restore the segment using the Reed Solomon outer code.
         In order to determine the number of the last segment even if it was lost the
         countdown in I2 is used. The same principle is applied for necso."""
+        
+        logging.info('start : read index and sort segments')
     
         # Get position of a segment
         def get_index(a):
@@ -542,9 +575,7 @@ class Container:
             return(idx)
 
         # Get position of each segment
-        #print(self.data.dump())
-        #raise
-        
+
         indices = []
         count_down = []
         
@@ -575,8 +606,7 @@ class Container:
         #   1. recompute using number of segments and necso (as done at encoding)
         #   2. detect form countdonw
         # Here, they are combined.
-        
-            
+   
         # find first block end
         start_at = self.dnecso + 1
         for i in range(start_at, len(count_down)):
@@ -615,6 +645,9 @@ class Container:
         
     def decode_outer_code(self):
         """Decodes Reed Solomon outer code: restore and correct segments"""
+        
+        logging.info('start : decode outer code')
+
         outerCoder =  RSCodec(self.necso, nsize=self.n) 
         line_offset = self.dnecsi + self.dI
         
@@ -679,6 +712,8 @@ class Container:
 
     def write_binary(self):
         """Writes 2D DNA data array to binary data."""
+        
+        logging.info('start : write binary')
 
         line_offset = self.dnecsi+self.dI
                        
