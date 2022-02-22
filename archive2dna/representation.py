@@ -17,7 +17,8 @@ class Representation:
                 dnecso = 3,
                 dN = 10,
                 n_lines   = 5,
-                n_columns = 20 ):
+                n_columns = 20,
+                alchemy_url = None ):
         
         self.size = [n_lines, n_columns]
         self.column_index = {}

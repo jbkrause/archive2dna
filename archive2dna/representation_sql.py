@@ -7,7 +7,6 @@ from sqlalchemy import MetaData, Table, Column
 from sqlalchemy import Integer, SmallInteger, String, and_, or_
 from sqlalchemy import select, insert, update, delete
 
-
 class Representation:
     """Represents data array structured by nucleotides. Each column represents a DNA segment.
        Columns are indexed : 
@@ -23,7 +22,10 @@ class Representation:
                 dnecso = 3,
                 dN = 10,
                 n_lines   = 5,
-                n_columns = 20 ):
+                n_columns = 20,
+                alchemy_url =  'sqlite://'):
+        
+        self.url = alchemy_url 
         
         self.size = [n_lines, n_columns]
         self.column_index = {}
@@ -41,7 +43,7 @@ class Representation:
             args.append( Column('c'+str(i), SmallInteger) )    
         representation = Table( *args )
 
-        self.engine = create_engine('sqlite://', echo=False)
+        self.engine = create_engine(self.url, echo=False)
         self.meta.create_all(self.engine)
         self.table = self.meta.tables['representation']
         

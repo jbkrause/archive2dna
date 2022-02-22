@@ -45,11 +45,15 @@ index_positions = int(cfg[cfg_set]['index_positions'])
 N = int(cfg[cfg_set]['N'])
 K = int(cfg[cfg_set]['K'])
 target_redundancy = float(cfg[cfg_set]['target_redundancy'])
+    
+# read technical config
+cfg_set = 'TECHNICAL'
 if cfg[cfg_set]['auto_zip'] == 'False':
     auto_zip = False
 else:
-    auto_zip = True 
-
+    auto_zip = True
+representation_type = cfg[cfg_set]['representation_type']
+representation_url = cfg[cfg_set]['representation_url']
 
 if args.package_id == None:
     primer_length = 0
@@ -67,6 +71,8 @@ if args.action=='encode':
                            N = N,
                            K = K,
                            target_redundancy = target_redundancy,
+                           representation_type = representation_type,
+                           representation_url = representation_url,
                            auto_zip = auto_zip )
     c.load_binary(binary_data) 
     c.create_logical_redundancy()
@@ -88,6 +94,8 @@ elif args.action=='decode':
                            N = N,
                            K = K,
                            target_redundancy = target_redundancy,
+                           representation_type = representation_type,
+                           representation_url = representation_url,
                            auto_zip = auto_zip)
     text = open(dna, 'r').read()
     c.load_dna(text)

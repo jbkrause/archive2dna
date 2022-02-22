@@ -29,12 +29,6 @@ from . import bytesutils
 from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
 
-use_sql = True
-if not use_sql :
-    from . import representation
-else:
-    from . import representation_sql as representation
-
 class Container:
 
     def __init__( self,
@@ -46,7 +40,9 @@ class Container:
                       index_positions = 24, # in bits, so I1 = 28 / (mi/2) = 7 symbols
                       N = 34,               # inner code lenght in symbols (message + error correctin symbols)
                       K = 30,               # inner code message in symbols
-                      target_redundancy = 0.4,  # sets outer redundancy to about 0.4 i.e. 40%
+                      target_redundancy = 0.4,           # sets outer redundancy to about 0.4 i.e. 40%
+                      representation_type = 'python',    # in memory representation: python objects or SQL cache
+                      representation_url  = 'sqlite://', # SQL representation config (sqlalchemy URL)
                       auto_zip = True):     # turns auto zipping/untipping on or off
 
         # Auto zip
@@ -54,7 +50,11 @@ class Container:
         # DO NOT set to false unless the container used supports paddig at the end
         # e.g. if the container is already a zip, this can be turned of (set to false)        
         self.auto_zip = auto_zip
-                      
+        
+        # Representation type
+        # Either python objects or cache in a SQL database
+        self.representation_type = representation_type
+        
         # Primer : package identification in bytes
         self.primer_length = primer_length # 5 bytes -> 20 nucleotides
         
@@ -205,7 +205,11 @@ class Container:
         # set total number of columns
         self.dn = self.dk + self.dnecso * self.numblocks
                 
-        # load data    
+        # load data
+        if self.representation_type == 'sql' :
+            from . import representation_sql as representation            
+        else:
+            from . import representation
         n_lines   = self.dK-self.dI
         n_columns = self.dk
         self.data = representation.Representation( data_bytes=binary_data,
@@ -368,9 +372,9 @@ class Container:
         
         self.add_outer_code() 
         
-        D = self.data.tonumpy()
-        print(D.shape)
-        print(D)
+        #D = self.data.tonumpy()
+        #print(D.shape)
+        #print(D)
         #print(D[:, self.dnecsi:])
         
         self.add_index()   
@@ -445,6 +449,11 @@ class Container:
     
     def dna_to_array(self):
         """Reformats DNA segments strings into array"""
+        
+        if self.representation_type == 'sql' :
+            from . import representation_sql as representation            
+        else:
+            from . import representation
         
         self.data = representation.Representation( data_dna=self.dna,
                                                    dN = self.dN,
