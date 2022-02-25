@@ -16,17 +16,19 @@ import configparser
 import argparse
 
 from archive2dna import package
+from archive2dna import dna as dna_module
 
 pp = pprint.PrettyPrinter(depth=6)
 
 # Parse arguments
-usage = '''cli.py ACTION FILE_IN FILE_OUT [--id package_id] [--config config_section]
-           action : encode | decode\n'''
+usage = '''cli.py ACTION FILE_IN FILE_OUT [--id package_id] [--er error_rate] [--config config_section]
+           action : encode | decode | corrupt\n'''
 parser = argparse.ArgumentParser(description='Encode/decode information package to DNA.')
-parser.add_argument('action', help='encode | decode .')
+parser.add_argument('action', help='encode | decode | corrupt .')
 parser.add_argument('input_file', help='Input file.')
 parser.add_argument('output_file', help='Output file.')
 parser.add_argument('--id', dest='package_id', help='Information package ID, used to generate the primer')
+parser.add_argument('--er', dest='error_rate', type=float, help='Error rate ER in perecentage, used to corrupt the DNA')
 parser.add_argument('--config', help='Config set to be used, e.g. DEFAULT or BIG (see config.ini)')
 args = parser.parse_args()
 
@@ -109,7 +111,25 @@ elif args.action=='decode':
     binary_data = c.write_binary()
     open(binary, 'wb').write(binary_data)
     pp.pprint(c.compute_stats())
-
+    
+elif args.action=='corrupt':
+    dna = args.input_file
+    dna_out = args.output_file
+    error_rate = args.error_rate/100
+    text = open(dna, 'r').read().split('\n')
+    corrupted_segments = 0
+    number_of_corruptions = 0
+    for i in range(len(text)):
+        corrupted = dna_module.corrupt_dna_segment( text[i] ,error_rate)
+        corruptions = sum(i != j for i, j in zip(corrupted, text[i]))
+        if corruptions > 0:
+            corrupted_segments += 1 
+            number_of_corruptions += corruptions
+            text[i] = corrupted
+    open(dna_out, 'w').write( '\n'.join(text) )
+    print('Corrupted segments :', corrupted_segments, '/', len(text) )
+    print('Total number of corruptions :', number_of_corruptions)
+    
 else:
     print(usage)
 

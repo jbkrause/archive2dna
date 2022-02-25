@@ -12,6 +12,7 @@
 
 import hashlib
 import array
+import random
 
 #############################
 ### DNA to bits and bytes ###
@@ -165,3 +166,22 @@ def add_primers(dna, primer1='', primer2=''):
 def remove_primers(dna, primer1='', primer2=''):
     """Remove primers form a DNA sequence (at sequence begin and end)"""
     return dna[ len(primer1) : -len(primer2) ]
+
+#############
+### tests ###
+#############
+
+def corrupt_dna_segment(dna,error_rate):
+    """add errors into one DNA segments"""  
+    conv = { 'A' : 'T',
+             'T' : 'A',
+             'G' : 'C',
+             'C' : 'G'}
+    new_dna = list(dna)
+    for i in range(len(new_dna)):
+        r = random.random()
+        if (r<error_rate):
+            new_dna[i] = conv[ dna[i] ]            
+    t = ''.join(new_dna)
+    return t
+    
