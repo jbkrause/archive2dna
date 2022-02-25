@@ -21,6 +21,7 @@ import io
 import zipfile
 import logging
 from statistics import median, mean
+#from multiprocessing import Pool
 
 # package
 from . import dna
@@ -29,6 +30,41 @@ from . import bytesutils
 #from reedsolo import RSCodec
 from . import reedsolo_local as reedsolo
 RSCodec = reedsolo.RSCodec
+
+# Multiprocessing funcions must be at root
+def compute_outer_code_block(block):
+
+    mo = block['params']['mo']
+    dmo = block['params']['dmo']
+    necso = block['params']['necso']
+    n = block['params']['n']
+
+    # Initialize Reed Solomon outer coder
+    outerCoder =  RSCodec(necso, nsize=n) # Using n-k = necs error correcting codes
+
+    block_out = []
+    for i in range( len(block['block']) ):
+        line_array = block['block'][i]
+        line_array_mo = dna.merge_bases(line_array, block_size=dmo)    
+    
+        # Run Reed Solomon to compute error correctig symblos
+        if mo == 8:
+            line_array_mo = bytearray( list(line_array_mo) )
+            line2 = outerCoder.encode( line_array_mo )
+            ecc = array.array('i', list(line2[-necso:]))
+        else:
+            line2 = outerCoder.encode( line_array_mo )
+            ecc = line2[-necso:]
+            
+        ecc_bases = dna.split_bases( ecc, block_size=dmo )
+       
+        # Store coded_message (= message + ecc) in data         
+        out = list(ecc_bases) + list(line_array)
+        
+        block_out.append( out )
+    return block_out
+
+
 
 class Container:
 
@@ -262,9 +298,6 @@ class Container:
            """
            
         logging.info('start : add outer code')
-        
-        # Initialize Reed Solomon outer coder
-        outerCoder =  RSCodec(self.necso, nsize=self.n) # Using n-k = necs error correcting codes
 
         n_lines   = self.dK-self.dI
         n_columns = self.dk
@@ -273,67 +306,25 @@ class Container:
         # Get blocks
         blocks = []
         for blk in range(self.numblocks):
-            block = []
+            block = {'params':{'mo':self.mo, 'dmo':self.dmo, 'necso':self.necso, 'n':self.n},
+                     'block':[] }
             block_start = blk*self.dblocksize
             block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
             for i in range(self.dK-self.dI):
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 dline = [x for x in dline if x != None]
                 line_array = array.array('i', list(dline))
-                block.append(line_array)
+                block['block'].append(line_array)
             blocks.append(block)
              
         # For each block run Reed Solomon
-        def compute_outer_code_block(block):
-            block_out = []
-            for i in range( len(block) ):
-                line_array = block[i]
-                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)    
-            
-                # Run Reed Solomon to compute error correctig symblos
-                if self.mo == 8:
-                    line_array_mo = bytearray( list(line_array_mo) )
-                    line2 = outerCoder.encode( line_array_mo )
-                    ecc = array.array('i', list(line2[-self.necso:]))
-                else:
-                    line2 = outerCoder.encode( line_array_mo )
-                    ecc = line2[-self.necso:]
-                    
-                ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
-               
-                # Store coded_message (= message + ecc) in data         
-                out = list(ecc_bases) + list(line_array)
-                
-                block_out.append( out )
-            return block_out
-            
         for blk in range(self.numblocks):
             # Create error outer correcting code symbols line by line
             blocks[blk] = compute_outer_code_block(blocks[blk])
-
-
-        if False:            
-            for i in range( len(blocks[blk]) ):
             
-                line_array = blocks[blk][i]
-                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)    
-            
-                # Run Reed Solomon to compute error correctig symblos
-                if self.mo == 8:
-                    line_array_mo = bytearray( list(line_array_mo) )
-                    line2 = outerCoder.encode( line_array_mo )
-                    ecc = array.array('i', list(line2[-self.necso:]))
-                else:
-                    line2 = outerCoder.encode( line_array_mo )
-                    ecc = line2[-self.necso:]
-                    
-                ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
-               
-                # Store coded_message (= message + ecc) in data         
-                out = list(ecc_bases) + list(line_array)
-                
-                blocks[blk][i] = out
-
+        #with Pool(5) as p:
+        #    blocs2 = p.map(compute_outer_code_block, blocks)
+        
         # For each block update representation with error correcting symbols
         line_offset = self.dnecsi + self.dI   
         for blk in range(self.numblocks):  
