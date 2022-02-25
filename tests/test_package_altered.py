@@ -15,6 +15,7 @@ test_tmp_dir = 'tests/tmp/'
 test_tmp_dir = test_tmp_dir.replace('/', os.sep)
 test_dna_tmp = test_tmp_dir + 'dna.txt'
 test_aip_tmp = test_tmp_dir + 'aip.zip'
+logging_file = test_tmp_dir + 'tests.log'
 
 if not os.path.isdir(test_tmp_dir):
     os.mkdir(test_tmp_dir)
@@ -45,7 +46,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -77,7 +78,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -96,7 +97,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -113,7 +114,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -132,7 +133,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -149,7 +150,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -169,7 +170,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -186,7 +187,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -201,13 +202,12 @@ class PackageModudle(TestCase):
         self.assertTrue( h1==h2  )
 
 
-
     def test_segments_permutations(self): 
         """Test segments permutations"""     
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -225,7 +225,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             test = f.read()
         c.load_dna(text)
@@ -239,3 +239,42 @@ class PackageModudle(TestCase):
         h2 = bytesutils.sha256(test_aip_tmp)
         self.assertTrue( h1==h2  )
 
+    def test_random_errors(self): 
+        """Test random errors with rate 0.5 percent"""     
+        # from bytes to DNA
+        with open(test_package, 'rb') as f:
+            binary_data = f.read()
+        c = package.Container(package_id=None, logging_file=logging_file)
+        c.load_binary(binary_data) 
+        c.create_logical_redundancy()
+        c.convert_to_dna()
+        text = c.write_dna()
+        with open(test_dna_tmp, 'w') as f:
+            f.write( text )
+        
+        # do segments permutation
+        with open(test_dna_tmp, 'r') as f:
+            dna_segments = f.read().split('\n')
+
+        error_rate = 0.5/100 
+        for i in range(len(dna_segments)):
+            corrupted = dna.corrupt_dna_segment( dna_segments[i] ,error_rate)
+            dna_segments[i] = corrupted
+            
+        with open(test_dna_tmp, 'w') as f:
+            f.write( '\n'.join(dna_segments) )
+
+        # from DNA to bytes
+        c = package.Container(logging_file=logging_file)
+        with open(test_dna_tmp, 'r') as f:
+            test = f.read()
+        c.load_dna(text)
+        c.check_and_correct_logical_redundancy()
+        binary_data = c.write_binary()
+        with open(test_aip_tmp, 'wb') as f:
+            f.write(binary_data)
+
+        # check if input and output are the sha256 the same
+        h1 = bytesutils.sha256(test_package)
+        h2 = bytesutils.sha256(test_aip_tmp)
+        self.assertTrue( h1==h2  )

@@ -458,6 +458,18 @@ class Container:
         logging.info('start : write DNA')
         
         return '\n'.join(self.dna)
+        
+    #def corrupt_dna(self, text, error_rate):
+    #    """Reads DNA text, remove primers around each segment, and randomly modifies the DNA."""
+    #    
+    #    logging.info('start : corrupt DNA')
+    #    
+    #    self.read_dna(text)
+    #    self.remove_primers()
+    #    for i in range(len(self.dna)):
+    #        self.dna[i] = dna.corrupt_dna_segment(self.dna[i], error_rate)
+    #    self.add_primers()
+    #    return '\n'.join(self.dna)
 
     ########################
     ### Data input : DNA ###
@@ -540,7 +552,7 @@ class Container:
                 decoded_msg, decoded_msgecc, errata_pos = innerCoder.decode( bytes(coded_msg_ba) )
                 n_corrections = len(errata_pos)
             except Exception as e:
-               
+                logging.debug('decode inner code : unable to recover segement {i}'.format(i=i))
                 self.segments_beyond_repair += 1
                 segments_to_destroy.append(i) # segment cannot be repaired and flagged for deletion
             if n_corrections > 0:
@@ -552,7 +564,7 @@ class Container:
                         self.inner_corrections += 1
                         self.data.setpos( self.dnecsi+j, i , decoded_bases[j] )
 
-        # Deleting corrupted segments that could not be repeires (flagged for deletion)
+        # Deleting corrupted segments that could not be repaired (flagged for deletion)
         for i in reversed( sorted(segments_to_destroy)):
             col = self.data.popcolumn(i)
 
@@ -579,25 +591,29 @@ class Container:
         indices = []
         count_down = []
         
+        logging.debug('start : read index')
         for i in range( self.data.size[1] ): # len(self.data.data)
-            #masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
-            masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
+            masked_index = self.data.data[i]['column'][self.dnecsi:self.dnecsi+self.dI]
+            #masked_index = self.data.getcolumn(i)[self.dnecsi:self.dnecsi+self.dI]
             index_col = []
             for j in range(len(masked_index)):
                 index_col.append( ( masked_index[j] ^ self.rand_ints[j%len(self.rand_ints)] ) % 4 )          
             indices.append( get_index( index_col[:self.dI1] ) )
             count_down.append( get_index( index_col[self.dI1:] ) )
-            self.data.updateindex(i, indices[i])
-            #self.data.data[i]['index'] = indices[i]
+            #self.data.updateindex(i, indices[i])
+            self.data.data[i]['index'] = indices[i]
+            #print(i, indices[i])
 
         # Get necso (using first countdown in I2)
         # TODO: make more robust, i.e. combine countdown for from all blocks
+        logging.debug('start : compute necso')
         for i in range(len(count_down)):
             if count_down[i] != 0:
                 self.dnecso = indices[i] + count_down[i] + 1
                 self.necso = self.dnecso // self.dmo
                 break
-
+        logging.debug('necso = {necso}'.format(necso=self.necso))
+        
         # Get number of blocks and their sizes
         # TODO: make more robust, use countdowns for from all blocks
         #       espetially if a lot of segments are lost we should still
@@ -607,39 +623,51 @@ class Container:
         #   2. detect form countdonw
         # Here, they are combined.
    
-        # find first block end
+        # find blocksize (i.e. first block end)
+        logging.debug('start : compute blocksize')
         start_at = self.dnecso + 1
         for i in range(start_at, len(count_down)):
             if count_down[i] != 0:
                 self.dblocksize = indices[i] + count_down[i] + 1
                 break
+        logging.debug('dblocksize = {dblocksize}'.format(dblocksize=self.dblocksize))
 
         # compute number of blocks and their size
+        logging.debug('start : compute number of blocks')
         dk_approx = self.data.size[1]
         self.numblocks = int( math.ceil(dk_approx / self.dblocksize) )
-
+        logging.debug('numblocks = {numblocks}'.format(numblocks=self.numblocks))
+        
         last_index = None
         for i in range(len(count_down)):
             if count_down[-i] != 0: # take fisrt index for non null countdowns
                 last_index = indices[-i] + count_down[-i]
                 break
-                
+        logging.debug('last_index = {last_index}'.format(last_index=last_index))
+        
         # Find missing segments indices (if any)
+        logging.debug('start : find missing indices (if any)')
+        logging.debug('maximal index :' + str(max(indices)))
+
         def missing_indices(l):
             l2 = sorted(l)
             start, end = l2[0], l2[-1]
             return sorted(set(range(start, end + 1)).difference(l2))
             
         missing_indx = missing_indices(indices)
+        #logging.debug('start : missing indicies ' + str(missing_indx))
+        
         self.segments_lost += len(missing_indx)
 
         # Extend data array with missing or unrecovered DNA segments (if required)
+        logging.debug('start : exetend data representation with columns (if needed)')
         if last_index > max(indices):
             missing_indx2 = list( range( max(indices)+1, last_index+1 ) )
             missing_indx = missing_indx + missing_indx2
         for x in missing_indx:
             self.data.addcolumn(x)
   
+        logging.debug('start : sort data array (reindex)')
         # Sort data array according to index
         self.data.reindex_columns()                        
         
