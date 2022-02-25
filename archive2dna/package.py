@@ -279,11 +279,8 @@ class Container:
                 # Read line in DNA representation
                 block_start = blk*self.dblocksize
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
-                #print(i, block_start, block_stop, self.data.size)
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 dline = [x for x in dline if x != None]
-                #print(dline)
-                #raise
                 line_array = array.array('i', list(dline))
                 line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)        
             
@@ -297,10 +294,6 @@ class Container:
                     ecc = line2[-self.necso:]
                     
                 ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
-                
-                #if blk==0 and i==0:
-                #    print(ecc)
-                #    print(ecc_bases)
                 
                 # Store coded_message (= message + ecc) in data
                 line_offset = self.dnecsi + self.dI            
@@ -353,7 +346,6 @@ class Container:
                 if i >= self.dnecso - 256: # do count down
                     b = dna.int2bytes(self.dnecso-i-1, n=1)
                     x4 = bytesutils.split_bytes_in_four(b)
-                    #print(i, self.dnecso-i-1, blk*self.dblocksize + i)
                     for l in range(len(x4)):
                         self.data.setpos( self.dnecsi + l+self.dI1, blk*self.dblocksize + i, x4[l] ) 
                 # else already set to 0 by code just above
@@ -375,11 +367,8 @@ class Container:
         innerCoder =  RSCodec(self.necsi, c_exp=self.mi)
         
         for i in range(self.dn):
-            #print('Process column inner code',i)
             dcol = self.data.getcolumn( i )[self.dnecsi:]
             dcol = [x for x in dcol if x != None] # FIXME: ugly fix, solve at source?
-            #dcol = [x if x else 0 != None for x in dcol]
-            #print(dcol)
             darray = array.array('i', list(dcol))
             
             # merging bases    
@@ -458,18 +447,6 @@ class Container:
         logging.info('start : write DNA')
         
         return '\n'.join(self.dna)
-        
-    #def corrupt_dna(self, text, error_rate):
-    #    """Reads DNA text, remove primers around each segment, and randomly modifies the DNA."""
-    #    
-    #    logging.info('start : corrupt DNA')
-    #    
-    #    self.read_dna(text)
-    #    self.remove_primers()
-    #    for i in range(len(self.dna)):
-    #        self.dna[i] = dna.corrupt_dna_segment(self.dna[i], error_rate)
-    #    self.add_primers()
-    #    return '\n'.join(self.dna)
 
     ########################
     ### Data input : DNA ###
@@ -602,7 +579,6 @@ class Container:
             count_down.append( get_index( index_col[self.dI1:] ) )
             #self.data.updateindex(i, indices[i])
             self.data.data[i]['index'] = indices[i]
-            #print(i, indices[i])
 
         # Get necso (using first countdown in I2)
         # TODO: make more robust, i.e. combine countdown for from all blocks
@@ -644,10 +620,29 @@ class Container:
                 last_index = indices[-i] + count_down[-i]
                 break
         logging.debug('last_index = {last_index}'.format(last_index=last_index))
-        
+
+        # Detect and remove index outliers
+        # FIXME: there should not be outliers as index is protected by innercode
+        #        but for un unknown reason it happens sometimes u
+        #        notably after random corruption typically error rate er > 0.5 %
+        self.data.reindex_columns() 
+        threshold = len(indices) + self.dnecso # not possible to repair anyway
+        outliers = []
+        for i,x in enumerate(indices):
+            if x > threshold:
+                outliers.append(x)
+                col = self.data.popcolumn(i)
+                indices.remove(x) 
+        if len(outliers)>0:
+            logging.warn('{noutliers} INDEX OUTLIERS DETECTED'.format(noutliers=len(outliers)))
+        for x in reversed( sorted(outliers)):
+            col = self.data.popcolumn(x)
+        indices = self.data.column_indexes()  
+
         # Find missing segments indices (if any)
         logging.debug('start : find missing indices (if any)')
         logging.debug('maximal index :' + str(max(indices)))
+        
 
         def missing_indices(l):
             l2 = sorted(l)
@@ -685,12 +680,7 @@ class Container:
             
                 block_start = blk*self.dblocksize
                 block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
-                
-                #dline = bytearray()
-                #for i in sorted( self.data.column_indexes() )[block_start:block_stop]:
-                #    col = self.data.getcolumn(i)[line_offset:self.data.size[0]]
-                #    for b in col:
-                #        dline.append(b)                
+                               
                 dline = self.data.getline( i+line_offset, s=slice(block_start, block_stop) )
                 dline = [x for x in dline if x != None]
                 
@@ -711,7 +701,11 @@ class Container:
                     n_corrections = 0
                     decoded_block, decoded_msgecc, errata_pos = outerCoder.decode(msgm+eccm)
                     n_corrections = len(errata_pos)
+                    
                 except Exception as e:
+                    logging.error('OUTER CODE DECODE ERROR. Block {block}, line {line}, error "{error}"'.format( block=blk,
+                                                                                                                 line=i,
+                                                                                                                 error=str(e)))
                     self.error = True
                     self.error_message += 'Decode outer code error on line ' +\
                                            str(i) +\

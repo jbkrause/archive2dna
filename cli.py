@@ -115,7 +115,10 @@ elif args.action=='decode':
 elif args.action=='corrupt':
     dna = args.input_file
     dna_out = args.output_file
-    error_rate = args.error_rate/100
+    if args.error_rate is not None:
+        error_rate = args.error_rate/100
+    else:
+        error_rate = 0.5/100
     text = open(dna, 'r').read().split('\n')
     corrupted_segments = 0
     number_of_corruptions = 0
