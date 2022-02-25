@@ -14,6 +14,7 @@ test_tmp_dir = 'tests/tmp/'
 test_tmp_dir = test_tmp_dir.replace('/', os.sep)
 test_dna_tmp = test_tmp_dir + 'dna.txt'
 test_aip_tmp = test_tmp_dir + 'aip.zip'
+logging_file = test_tmp_dir + 'tests.log'
 
 if not os.path.isdir(test_tmp_dir):
     os.mkdir(test_tmp_dir)
@@ -22,12 +23,12 @@ class PackageModudle(TestCase):
 
 
     def test_is_instanciated(self):
-        c = package.Container() 
+        c = package.Container(logging_file=logging_file) 
         self.assertTrue( isinstance(c.N, int) )
 
     def test_rand_mask(self):
         """Appling twice the same mask using XOR must result in identity"""
-        c = package.Container() 
+        c = package.Container(logging_file=logging_file) 
         b = b''
         for i in range(256):
             b += dna.int2bytes(i, n=1)        
@@ -36,7 +37,7 @@ class PackageModudle(TestCase):
     def test_primers_management(self):
         """Tests identity after adding and removing primers"""
         sequence = 'A'
-        c = package.Container(package_id='test:1')
+        c = package.Container(package_id='test:1', logging_file=logging_file)
         c.dna = [sequence]
         c.add_primers()
         c.remove_primers()
@@ -47,7 +48,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id='test:1')
+        c = package.Container(package_id='test:1', logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -57,7 +58,7 @@ class PackageModudle(TestCase):
         c.compute_stats()
 
         # from DNA to bytes
-        c = package.Container(package_id='test:1')
+        c = package.Container(package_id='test:1', logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             test = f.read()
         c.load_dna(text)

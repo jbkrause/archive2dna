@@ -13,6 +13,7 @@ test_tmp_dir = 'tests/tmp/'
 test_tmp_dir = test_tmp_dir.replace('/', os.sep)
 test_dna_tmp = test_tmp_dir + 'dna.txt'
 test_aip_tmp = test_tmp_dir + 'aip.zip'
+logging_file = test_tmp_dir + 'tests.log'
 
 if not os.path.isdir(test_tmp_dir):
     os.mkdir(test_tmp_dir)
@@ -47,7 +48,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -56,7 +57,7 @@ class PackageModudle(TestCase):
             f.write( text )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -80,7 +81,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None)
+        c = package.Container(package_id=None, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -89,7 +90,7 @@ class PackageModudle(TestCase):
             f.write( text )
 
         # from DNA to bytes
-        c = package.Container()
+        c = package.Container(logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)

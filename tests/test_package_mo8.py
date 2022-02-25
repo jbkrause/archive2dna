@@ -14,6 +14,7 @@ test_tmp_dir = 'tests/tmp/'
 test_tmp_dir = test_tmp_dir.replace('/', os.sep)
 test_dna_tmp = test_tmp_dir + 'dna.txt'
 test_aip_tmp = test_tmp_dir + 'aip.zip'
+logging_file = test_tmp_dir + 'tests.log'
 
 # saller outer code : test of blocks
 mo = 8
@@ -47,7 +48,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None, mo=mo)
+        c = package.Container(package_id=None, mo=mo, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -79,7 +80,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container(mo=mo)
+        c = package.Container(mo=mo, logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -98,7 +99,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None, mo=mo)
+        c = package.Container(package_id=None, mo=mo, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -115,7 +116,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container(mo=mo)
+        c = package.Container(mo=mo, logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -134,7 +135,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None, mo=mo)
+        c = package.Container(package_id=None, mo=mo, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -151,7 +152,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container(mo=mo)
+        c = package.Container(mo=mo, logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -171,7 +172,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None, mo=mo)
+        c = package.Container(package_id=None, mo=mo, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -188,7 +189,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container(mo=mo)
+        c = package.Container(mo=mo, logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             text = f.read()
         c.load_dna(text)
@@ -208,7 +209,7 @@ class PackageModudle(TestCase):
         # from bytes to DNA
         with open(test_package, 'rb') as f:
             binary_data = f.read()
-        c = package.Container(package_id=None, mo=mo)
+        c = package.Container(package_id=None, mo=mo, logging_file=logging_file)
         c.load_binary(binary_data) 
         c.create_logical_redundancy()
         c.convert_to_dna()
@@ -226,7 +227,7 @@ class PackageModudle(TestCase):
             f.write( '\n'.join(dna_segments) )
 
         # from DNA to bytes
-        c = package.Container(mo=mo)
+        c = package.Container(mo=mo, logging_file=logging_file)
         with open(test_dna_tmp, 'r') as f:
             test = f.read()
         c.load_dna(text)
