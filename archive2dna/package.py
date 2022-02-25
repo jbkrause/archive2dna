@@ -270,22 +270,26 @@ class Container:
         n_columns = self.dk
         line_offset_ori   = self.dN - n_lines
 
-        # For each block         
+        # Get blocks
+        blocks = []
         for blk in range(self.numblocks):
-
-            # Create error outer correcting code symbols line by line    
+            block = []
+            block_start = blk*self.dblocksize
+            block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
             for i in range(self.dK-self.dI):
-            
-                # Read line in DNA representation
-                block_start = blk*self.dblocksize
-                block_stop = min( [ (blk+1)*self.dblocksize, self.data.size[1] ] )
-                #print(i, block_start, block_stop, self.data.size)
                 dline = self.data.getline( i+line_offset_ori, s=slice(block_start, block_stop) )[self.dnecso:]
                 dline = [x for x in dline if x != None]
-                #print(dline)
-                #raise
                 line_array = array.array('i', list(dline))
-                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)        
+                block.append(line_array)
+            blocks.append(block)
+             
+        # For each block run Reed Solomon        
+        for blk in range(self.numblocks):
+            # Create error outer correcting code symbols line by line    
+            for i in range( len(blocks[blk]) ):
+            
+                line_array = blocks[blk][i]
+                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)    
             
                 # Run Reed Solomon to compute error correctig symblos
                 if self.mo == 8:
@@ -305,9 +309,17 @@ class Container:
                 # Store coded_message (= message + ecc) in data
                 line_offset = self.dnecsi + self.dI            
                 out = list(ecc_bases) + list(line_array)
-                for b in range(len(out)):
-                    self.data.setpos( i+line_offset , blk*self.dblocksize + b , out[b]) 
+                
+                blocks[blk][i] = out
 
+        # For each block update representation
+        for blk in range(self.numblocks):
+
+            # Create error outer correcting code symbols line by line    
+            for i in range( len(blocks[blk]) ):
+                for b in range(len(blocks[blk][i])):
+                    self.data.setpos( i+line_offset , blk*self.dblocksize + b , blocks[blk][i][b]) 
+                    
     def add_index(self):
         """Adds index i.e. the identification of DNA segments (1 segment = 1 column):
         1) Secion I1: number segments starting at 1. Note: 0 is reserved for lost/destroyed segments.
