@@ -283,9 +283,36 @@ class Container:
                 block.append(line_array)
             blocks.append(block)
              
-        # For each block run Reed Solomon        
+        # For each block run Reed Solomon
+        def compute_outer_code_block(block):
+            block_out = []
+            for i in range( len(block) ):
+                line_array = block[i]
+                line_array_mo = dna.merge_bases(line_array, block_size=self.dmo)    
+            
+                # Run Reed Solomon to compute error correctig symblos
+                if self.mo == 8:
+                    line_array_mo = bytearray( list(line_array_mo) )
+                    line2 = outerCoder.encode( line_array_mo )
+                    ecc = array.array('i', list(line2[-self.necso:]))
+                else:
+                    line2 = outerCoder.encode( line_array_mo )
+                    ecc = line2[-self.necso:]
+                    
+                ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
+               
+                # Store coded_message (= message + ecc) in data         
+                out = list(ecc_bases) + list(line_array)
+                
+                block_out.append( out )
+            return block_out
+            
         for blk in range(self.numblocks):
-            # Create error outer correcting code symbols line by line    
+            # Create error outer correcting code symbols line by line
+            blocks[blk] = compute_outer_code_block(blocks[blk])
+
+
+        if False:            
             for i in range( len(blocks[blk]) ):
             
                 line_array = blocks[blk][i]
@@ -301,21 +328,15 @@ class Container:
                     ecc = line2[-self.necso:]
                     
                 ecc_bases = dna.split_bases( ecc, block_size=self.dmo )
-                
-                #if blk==0 and i==0:
-                #    print(ecc)
-                #    print(ecc_bases)
-                
-                # Store coded_message (= message + ecc) in data
-                line_offset = self.dnecsi + self.dI            
+               
+                # Store coded_message (= message + ecc) in data         
                 out = list(ecc_bases) + list(line_array)
                 
                 blocks[blk][i] = out
 
-        # For each block update representation
-        for blk in range(self.numblocks):
-
-            # Create error outer correcting code symbols line by line    
+        # For each block update representation with error correcting symbols
+        line_offset = self.dnecsi + self.dI   
+        for blk in range(self.numblocks):  
             for i in range( len(blocks[blk]) ):
                 for b in range(len(blocks[blk][i])):
                     self.data.setpos( i+line_offset , blk*self.dblocksize + b , blocks[blk][i][b]) 
