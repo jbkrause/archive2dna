@@ -5,24 +5,22 @@
 **License:** [GPLv3](LICENSE)
 
 Encodes a binary information package into DNA and decodes DNA
-back into the original binary representation. Reed Solomon Error 
+back into the original binary representation. Reed-Solomon error 
 correcting codes ensure full data retrieval in case of DNA medium
 partial damage.
 
-Warning: tool in early development stage, do not use in production.
-
 # Description
 
-This software enables long term preservation of information in
-DNA, typically for centuries at room temperature (depending
+This software enables long term preservation of information packages 
+in DNA, typically for centuries at room temperature (depending
 on the DNA conditioning). 
 
 Default parameters cover a wide range of information package sizes. 
-When using default parameters no information is required to decode an 
-information package from its DNA representation.
+When using default parameters no information or parameter is required 
+to decode an information package from its DNA representation.
 
-Reed Solomon error correcting is applied along two dimensions 
-with the aim to maximize the chances of a successful data retrieval 
+Reed-Solomon error correcting is applied over two dimensions 
+with the goal to maximize the chances of a successful data retrieval 
 even in case of DNA storage damaged or partial loss.
 
 The tool is fully compatible with ISO 14721 (OAIS). 
@@ -30,17 +28,17 @@ The tool is fully compatible with ISO 14721 (OAIS).
 Archival information packages (AIP) identification is implemented 
 into the DNA representation of packages, allowing the directed 
 access to any specific AIP via its persistent identifier (PID): 
-Each PID is mapped using a deterministic algorithm to a DNA primer 
+Each PID is mapped, using a deterministic algorithm, to a DNA primer 
 that may be used to amplify the package via polymerase chain 
 reaction (PCR).
 
 Additionally, knowing the PID is not required to decode an 
 information package: archived packages in the same physical 
-container may be read as a whole and the individual the packages 
+container may be read as a whole and each individual the packages 
 restored on an individual basis.
 
-Written in pure Python and without external libraries this tool 
-is multi-platform.
+Written in pure Python and without dependency on any external library, 
+ this tool is multi-platform.
 
 # Usage
 
@@ -79,6 +77,7 @@ Decoding (POST the 'dna.txt' DNA segments file):
 ```
 curl --data-binary @dna.txt -X POST http://localhost:8080/decode -o aip_decoded.zip
 ```
+
 ## Library
 
 Direct usage in pythonic applications.
@@ -133,10 +132,10 @@ The folloing Reed Solomon library was included in this tool:
 [https://github.com/tomerfiliba/reedsolomon](https://github.com/tomerfiliba/reedsolomon)). It
 
 It was chosen because:
-* it is an universal Reed Solomon library, 
-* that is extensively documented on
+* universal Reed Solomon library, 
+* extensively documented on
 [wikiversitiy](https://en.wikiversity.org/wiki/Reed%E2%80%93Solomon_codes_for_coders), 
-* and written in pure Python (no external dependency required). 
+* written in pure Python (no external dependency required). 
 
 ## DNA package representation
 
@@ -180,14 +179,14 @@ The index is composed of two parts. The upper part contains a
 numeration of the fragments starting at 0. The lower part consists
 of partial countdowns to the end of outer code error correcting
 symbols and end of messages (the actual data to preserve). These 
-countdowns enable auto detection of the mentioned parameters even if
-many DNA segments are no longer readable.
+countdowns enable auto detection of the necso and blocksize parameters 
+even if in the case many DNA segments are no longer readable or lost.
 
 ### Masking using random data 
 
 Both the binary data of the package and the index are masked using
-random data applied using a XOR operation. The random data sets are
-included in the source code as they are required to restore the data.
+random data applied using a XOR operation. The corresponding random data 
+sets are included in the source code as they are required to restore the data.
 
 These oparations are necessary to avoid repetitive DNA sequences that are
 problematic during synthesis and PCR operations.
@@ -200,9 +199,9 @@ reaction](https://en.wikipedia.org/wiki/Polymerase_chain_reaction).
 
 archive2dna manges these primers: they are generated deterministically
 on the basis of the package identifier. Any package identifier format is supported,
-although each package must recieve a unique identifier.
+although each package must recieve a specific identifier.
 
-The folloiwng function is generates the primer bits:
+The folloiwng function is generates the primer bytes:
 
 ``` python
 def id2primer(package_id, length=5):
@@ -216,37 +215,37 @@ def id2primer(package_id, length=5):
 ### Zipping
 
 At the very begin of the encoding process, the information package is zipped by default. 
-It is unzipped at the end of decoding. This feature may be turned off if the
-package to archive is already a ZIP file or another conainter supporting
-padding at the end (i.e. that empty bytes are added the end of the file).
+It is unzipped at the end of decoding. This feature may be turned off in the config
+file. In this cas, the package to archive MUST already a ZIP file or another conainter supporting
+padding at the end (i.e. that empty bytes are added the end of the file do not affect its readability).
 
-This ensures that:
-* a checksum of the package is taken before encoding and checked at decoding
-* homogeneous sections of data are reduced by compression (they are problematic in DNA)
-* informatio package size is reduced
-* padding of last DNA segment when it is restored via outer code is removed (as ZIP ingnores trailing zeroes) 
+This zipping ensures that:
+* a CRC32 checksum of the package is taken before encoding and checked at decoding
+* homogeneous sections of data are reduced by compression (they are problematic in DNA format)
+* information package size is reduced
+* padding of last DNA segment, that may occur under specific contidions, are removed as the ZIP algorithm ingnores trailing bytes.
 
 
 ## Parameters
 
 ### Inner code
 
-* Symbols size : mi = 8 bits allows for support of DNA segment up to 1024
+* Symbols size : mi=8 bits allows for support of DNA segment up to 1024
   nucleotides (2**8 blocks of 4 DNA bases)
-* Reed Solomon N=34, K=30 : allow to correct up to 4 blocks of 4
-  nucleotides, i.e. an inner redundancy over 10%.
+* Reed Solomon N=52, K=44 nucleotides. Allows to correct up to 4 blocks of 4 nucleotides (depending on reading frame).
 * DNA segments of reasonable size (considering other default
-  parameters they are of 136 nucleotides without primers),
+  parameters they are of 208 nucleotides without primers and 248 nuleotides with primers),
 
 ### Outer code
 
 * Symbols size : mo = 14 bits allows for support of outer code blocks of
   2^14 * 14/2 (over 10^5) nucleotides/fragments.
 * n_max = 2**mo-1
+* targ
 * the number of fragments is chosen to fit the size of the binary package
   to be encoded
 * k  auto computed on basis of package size so that outer
-  redundancy is of quite exactly of 40% (as recommended).
+  redundancy is the closest to target_redundancy=0.4 (as recommended).
 
 ### Index
 * index_positions=24 bits : allow for 2^24 (over 10^7) segments par
@@ -265,7 +264,7 @@ required to restore the data.
 ### Identification and primers
 
 Default primer lenght is of 5 bytes, i.e. 20 nucleotides. This is enough
-to identifiy millions of information packages and appropriated for PCR.
+to identifiy millions of information packages and an appropriated length for PCR.
 
 
 # Requirements

@@ -11,5 +11,6 @@
 
 ## Issues
 
+* Deletion (or to many mutations) in first line leads (in some cases) to decoding error.
 * At decoding, make necso and block detection more robust by using the ovearall countdown data
 
