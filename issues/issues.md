@@ -11,5 +11,5 @@
 
 ## Issues
 
-* At decoding, make necso and block detection more robust by using the ovearall countdonw data
+* At decoding, make necso and block detection more robust by using the ovearall countdown data
 
